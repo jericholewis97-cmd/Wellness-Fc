@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import PlayerReport from './PlayerReport';
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, ReferenceLine } from "recharts";
 
 // ─── CONFIG ───────────────────────────────────────────────
@@ -375,8 +376,8 @@ export default function App() {
 
         {/* Fiche joueur */}
         {selected && (
-          <PlayerSheet player={selected} allEntries={allEntries} allTempsJeu={tempsJeu} onBack={() => setSelected(null)} isMobile={isMobile} />
-        )}
+  <PlayerReport player={selected} allEntries={allEntries} allTempsJeu={tempsJeu} onBack={() => setSelected(null)} />
+)}
 
         {/* DASHBOARD */}
         {!selected && tab === "dashboard" && (
