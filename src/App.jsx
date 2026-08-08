@@ -106,9 +106,20 @@ function PlayerCardMobile({ p, onClick }) {
   );
 }
 
+const STORAGE_KEY = "wellnessfc_user";
+
+function getSavedUser() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 export default function App() {
   const isMobile = useIsMobile();
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(getSavedUser);
   const [loading, setLoading] = useState(false);
   const [isDemo, setIsDemo] = useState(true);
   const [entrainement, setEntrainement] = useState(DEMO_E);
@@ -151,7 +162,10 @@ export default function App() {
     finally { setLoading(false); }
   };
 
-  const handleLogout = () => setUser(null);
+  const handleLogout = () => {
+    try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+    setUser(null);
+  };
 
   const alerts = playerStats.filter(p => p.level === "high");
   const staffCalls = playerStats.filter(p => p.parlerStaff > 0);
