@@ -1,10 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, ReferenceLine } from "recharts";
 import PlayerReport from './PlayerReport';
-import { supabase } from "./supabase";
 import Login from "./Login";
 
-// ─── CONFIG ───────────────────────────────────────────────
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx5lLUkcdWHt9PJTd-EQuJlkdR48nc_oSthzC_e36pLr5nGXfkZGWzjbB12M-2MBH3gDw/exec";
 
 const PLAYERS = [
@@ -119,36 +117,13 @@ export default function App() {
   const [tab, setTab] = useState("dashboard");
   const [search, setSearch] = useState("");
 
-  // Auth Supabase
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user || null);
-    });
-    supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user || null);
-    });
-  }, []);
-
-  // Si pas connecté → page login
-  if (!user) return <Login onLogin={setUser} />;
-
-  const allEntries = useMemo(() => [...entrainement, ...matchData].sort((a,b) => a.date.localeCompare(b.date)), [entrainement, matchData]);
-
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(APPS_SCRIPT_URL);
-      const data = await res.json();
-      if (data.entrainement?.length) { setEntrainement(data.entrainement); setIsDemo(false); }
-      if (data.match?.length) setMatchData(data.match);
-    } catch(e) { console.error(e); }
-    finally { setLoading(false); }
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-  };
+  // IMPORTANT : tous les hooks (useMemo, useEffect, useState) doivent être
+  // appelés AVANT tout "return" conditionnel, sinon React perd le fil
+  // (règle des Hooks) et plante avec l'erreur #310 / page blanche.
+  const allEntries = useMemo(
+    () => [...entrainement, ...matchData].sort((a, b) => a.date.localeCompare(b.date)),
+    [entrainement, matchData]
+  );
 
   const playerStats = useMemo(() => PLAYERS.map(p => {
     const entries = allEntries.filter(e => e.joueur === p.name).sort((a,b) => a.date.localeCompare(b.date));
@@ -161,6 +136,22 @@ export default function App() {
       parlerStaff: entries.filter(e => e.parlerStaff === "Oui").length,
     };
   }), [allEntries]);
+
+  // Si pas connecté → page login (placé APRÈS tous les hooks)
+  if (!user) return <Login onLogin={setUser} />;
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(APPS_SCRIPT_URL);
+      const data = await res.json();
+      if (data.entrainement?.length) { setEntrainement(data.entrainement); setIsDemo(false); }
+      if (data.match?.length) setMatchData(data.match);
+    } catch(e) { console.error(e); }
+    finally { setLoading(false); }
+  };
+
+  const handleLogout = () => setUser(null);
 
   const alerts = playerStats.filter(p => p.level === "high");
   const staffCalls = playerStats.filter(p => p.parlerStaff > 0);
@@ -185,8 +176,6 @@ export default function App() {
 
   return (
     <div style={{ minHeight:"100vh", background:"#060e18", color:"#c8dff0", fontFamily:"'DM Sans','Segoe UI',sans-serif" }}>
-
-      {/* HEADER */}
       <div style={{ background:"#080f1a", borderBottom:`1px solid ${BORDER}`, padding:`0 ${MP}px`, position:"sticky", top:0, zIndex:50 }}>
         <div style={{ maxWidth:1100, margin:"0 auto", display:"flex", alignItems:"center", justifyContent:"space-between", height: isMobile ? 52 : 58 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -211,7 +200,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* NAV DESKTOP */}
       {!isMobile && (
         <div style={{ background:"#080f1a", borderBottom:"1px solid #060e18", padding:`0 ${MP}px` }}>
           <div style={{ maxWidth:1100, margin:"0 auto", display:"flex" }}>
@@ -225,9 +213,7 @@ export default function App() {
         </div>
       )}
 
-      {/* CONTENU */}
       <div style={{ maxWidth:1100, margin:"0 auto", padding: isMobile ? "14px 12px" : "24px", paddingBottom: isMobile ? 80 : 24 }}>
-
         {selected && (
           <PlayerReport player={selected} allEntries={allEntries} allTempsJeu={[]} onBack={() => setSelected(null)} isMobile={isMobile} />
         )}
