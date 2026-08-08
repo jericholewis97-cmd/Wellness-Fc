@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, ReferenceLine } from "recharts";
 import PlayerReport from './PlayerReport';
 import Login from "./Login";
+import Matches from "./Matches";
 
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx5lLUkcdWHt9PJTd-EQuJlkdR48nc_oSthzC_e36pLr5nGXfkZGWzjbB12M-2MBH3gDw/exec";
 
@@ -124,6 +125,8 @@ export default function App() {
   const [isDemo, setIsDemo] = useState(true);
   const [entrainement, setEntrainement] = useState(DEMO_E);
   const [matchData, setMatchData] = useState(DEMO_M);
+  const [tempsJeu, setTempsJeu] = useState([]);
+  const [savingMatch, setSavingMatch] = useState(false);
   const [selected, setSelected] = useState(null);
   const [tab, setTab] = useState("dashboard");
   const [search, setSearch] = useState("");
@@ -160,9 +163,29 @@ export default function App() {
       // (sinon les lignes supprimées dans le Sheet restent affichées dans l'app)
       setEntrainement(data.entrainement || []);
       setMatchData(data.match || []);
+      setTempsJeu(data.tempsJeu || []);
       setIsDemo(false);
     } catch(e) { console.error(e); }
     finally { setLoading(false); }
+  };
+
+  // Enregistre le temps de jeu + commentaires d'un match (staff) dans le Sheet,
+  // puis recharge les données pour refléter le changement.
+  const handleSaveMatch = async (entries) => {
+    setSavingMatch(true);
+    try {
+      const res = await fetch(APPS_SCRIPT_URL, {
+        method: "POST",
+        // Content-Type text/plain évite le préflight CORS que Apps Script ne gère pas bien
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ entries }),
+      });
+      const result = await res.json();
+      if (result.error) throw new Error(result.error);
+      await loadData();
+    } finally {
+      setSavingMatch(false);
+    }
   };
 
   const handleLogout = () => {
@@ -232,7 +255,7 @@ export default function App() {
 
       <div style={{ maxWidth:1100, margin:"0 auto", padding: isMobile ? "14px 12px" : "24px", paddingBottom: isMobile ? 80 : 24 }}>
         {selected && (
-          <PlayerReport player={selected} allEntries={allEntries} allTempsJeu={[]} onBack={() => setSelected(null)} isMobile={isMobile} />
+          <PlayerReport player={selected} allEntries={allEntries} allTempsJeu={tempsJeu} onBack={() => setSelected(null)} isMobile={isMobile} />
         )}
 
         {!selected && tab === "dashboard" && (
@@ -366,9 +389,14 @@ export default function App() {
         )}
 
         {!selected && tab === "matches" && (
-          <div style={{ color:"#2d5070", textAlign:"center", padding:60, fontSize:14 }}>
-            Aucune donnée de match pour le moment.
-          </div>
+          <Matches
+            players={PLAYERS}
+            matchWellness={matchData}
+            tempsJeu={tempsJeu}
+            onSave={handleSaveMatch}
+            saving={savingMatch}
+            isMobile={isMobile}
+          />
         )}
       </div>
 
