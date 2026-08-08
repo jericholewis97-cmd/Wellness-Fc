@@ -156,8 +156,11 @@ export default function App() {
     try {
       const res = await fetch(APPS_SCRIPT_URL);
       const data = await res.json();
-      if (data.entrainement?.length) { setEntrainement(data.entrainement); setIsDemo(false); }
-      if (data.match?.length) setMatchData(data.match);
+      // On applique toujours ce que renvoie le Sheet, même si c'est vide
+      // (sinon les lignes supprimées dans le Sheet restent affichées dans l'app)
+      setEntrainement(data.entrainement || []);
+      setMatchData(data.match || []);
+      setIsDemo(false);
     } catch(e) { console.error(e); }
     finally { setLoading(false); }
   };
