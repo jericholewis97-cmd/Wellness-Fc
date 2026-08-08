@@ -168,6 +168,16 @@ export default function PlayerReport({ player, allEntries, allTempsJeu = [], onB
     { m:"Humeur",   v: avgHumeur || 5 },
   ];
 
+  // Participation matchs (temps de jeu + commentaires saisis par le staff)
+  const matchsJoues = useMemo(
+    () => allTempsJeu
+      .filter(t => t.joueur === player.name && (t.minutes || 0) > 0)
+      .sort((a, b) => b.date.localeCompare(a.date)),
+    [allTempsJeu, player]
+  );
+  const totalMinutes = matchsJoues.reduce((s, t) => s + (t.minutes || 0), 0);
+  const moyenneMinutes = matchsJoues.length ? Math.round(totalMinutes / matchsJoues.length) : 0;
+
   const stats = { entries, score, avgFatigue, avgSommeil, avgStress, avgDouleurs, avgHumeur,
     enPeriodeCount, avgDouleursMenst, blessures, blessuresCount, alerts, recommendations, level };
 
@@ -303,7 +313,6 @@ export default function PlayerReport({ player, allEntries, allTempsJeu = [], onB
             <XAxis dataKey="date" tick={{ fill:"#2d4a63", fontSize:9 }} />
             <YAxis domain={[0,10]} tick={{ fill:"#2d4a63", fontSize:9 }} width={20} />
             <Tooltip contentStyle={{ background:"#0a1520", border:"none", borderRadius:8, color:"#e2f4ff", fontSize:11 }} />
-            <ReferenceLine y={7} stroke="#ef444422" strokeDasharray="4 4" />
             <Line dataKey="Fatigue" stroke="#ef4444" dot={false} strokeWidth={2} />
             <Line dataKey="Sommeil" stroke="#38bdf8" dot={false} strokeWidth={2} />
             <Line dataKey="Stress"  stroke="#f59e0b" dot={false} strokeWidth={1.5} strokeDasharray="4 2" />
@@ -317,6 +326,44 @@ export default function PlayerReport({ player, allEntries, allTempsJeu = [], onB
             </div>
           ))}
         </div>
+      </>)}
+
+      {/* Participation matchs */}
+      {card(<>
+        {cardTitle("🏆 Participation matchs")}
+        <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr 1fr 1fr" : "repeat(3,1fr)", gap:10, marginBottom: matchsJoues.length ? 12 : 0 }}>
+          <div style={{ background:"#0a1520", border:"1px solid #1a2f45", borderRadius:10, padding:"10px", textAlign:"center" }}>
+            <div style={{ color:"#38bdf8", fontSize:20, fontWeight:900 }}>{matchsJoues.length}</div>
+            <div style={{ color:"#2d5070", fontSize:9, textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>Matchs joués</div>
+          </div>
+          <div style={{ background:"#0a1520", border:"1px solid #1a2f45", borderRadius:10, padding:"10px", textAlign:"center" }}>
+            <div style={{ color:PINK, fontSize:20, fontWeight:900 }}>{totalMinutes}'</div>
+            <div style={{ color:"#2d5070", fontSize:9, textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>Minutes totales</div>
+          </div>
+          <div style={{ background:"#0a1520", border:"1px solid #1a2f45", borderRadius:10, padding:"10px", textAlign:"center" }}>
+            <div style={{ color:"#f59e0b", fontSize:20, fontWeight:900 }}>{moyenneMinutes || "—"}{moyenneMinutes ? "'" : ""}</div>
+            <div style={{ color:"#2d5070", fontSize:9, textTransform:"uppercase", letterSpacing:1, marginTop:2 }}>Moy. / match</div>
+          </div>
+        </div>
+        {matchsJoues.length === 0 ? (
+          <div style={{ color:"#2d5070", fontSize:12 }}>Aucun temps de jeu enregistré pour l'instant.</div>
+        ) : (
+          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+            {matchsJoues.map((m, i) => (
+              <div key={i} style={{ background:"#0a1520", borderRadius:8, padding:"8px 12px" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8 }}>
+                  <span style={{ color:"#94b8d0", fontSize:12, fontWeight:600 }}>
+                    {m.adversaire ? `vs ${m.adversaire}` : "Match"} — {m.date.split("-").reverse().join("/")}
+                  </span>
+                  <span style={{ color:"#38bdf8", fontWeight:700, fontSize:13 }}>{m.minutes}'</span>
+                </div>
+                {m.commentaire && (
+                  <div style={{ color:"#4a6480", fontSize:11, marginTop:4, fontStyle:"italic" }}>« {m.commentaire} »</div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </>)}
 
       {/* Zones douleurs */}
@@ -351,5 +398,3 @@ export default function PlayerReport({ player, allEntries, allTempsJeu = [], onB
     </div>
   );
 }
-
-import { ReferenceLine } from "recharts";
