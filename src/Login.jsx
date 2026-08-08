@@ -7,6 +7,8 @@ const STAFF_ACCOUNTS = [
   { email: "parriauxangel.pro@hotmail.com", password: "WellnessFC2026!" },
 ];
 
+const STORAGE_KEY = "wellnessfc_user";
+
 // Icônes oeil (SVG inline, pas de dépendance externe)
 const EyeIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -24,10 +26,17 @@ const EyeOffIcon = () => (
   </svg>
 );
 
+const CheckIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="20 6 9 17 4 12" />
+  </svg>
+);
+
 export default function Login({ onLogin }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState("");
 
   const handleLogin = () => {
@@ -39,7 +48,19 @@ export default function Login({ onLogin }) {
     );
     if (account) {
       setError("");
-      onLogin({ email: account.email });
+      const userData = { email: account.email };
+
+      if (rememberMe) {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
+        } catch (e) {
+          console.error("Impossible de sauvegarder la session:", e);
+        }
+      } else {
+        try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+      }
+
+      onLogin(userData);
     } else {
       setError("Email ou mot de passe incorrect.");
     }
@@ -72,7 +93,7 @@ export default function Login({ onLogin }) {
             />
           </div>
 
-          <div style={{ marginBottom:24 }}>
+          <div style={{ marginBottom:16 }}>
             <label style={{ color:"#4a6480", fontSize:12, fontWeight:600, letterSpacing:1, textTransform:"uppercase", display:"block", marginBottom:8 }}>Mot de passe</label>
             <div style={{ position:"relative" }}>
               <input
@@ -98,6 +119,22 @@ export default function Login({ onLogin }) {
                 {showPassword ? <EyeOffIcon /> : <EyeIcon />}
               </button>
             </div>
+          </div>
+
+          <div
+            onClick={() => setRememberMe(v => !v)}
+            style={{ display:"flex", alignItems:"center", gap:8, marginBottom:24, cursor:"pointer", userSelect:"none" }}
+          >
+            <div style={{
+              width:18, height:18, borderRadius:5, flexShrink:0,
+              background: rememberMe ? PINK : "#060e18",
+              border: `1px solid ${rememberMe ? PINK : "#1a2f45"}`,
+              display:"flex", alignItems:"center", justifyContent:"center",
+              transition:"background 0.15s, border-color 0.15s"
+            }}>
+              {rememberMe && <CheckIcon />}
+            </div>
+            <span style={{ color:"#8ba4bd", fontSize:13 }}>Se souvenir de moi sur cet appareil</span>
           </div>
 
           {error && <div style={{ background:"#110000", border:"1px solid #7f1d1d", borderRadius:8, padding:"10px 14px", marginBottom:16, color:"#fca5a5", fontSize:13 }}>⚠ {error}</div>}
