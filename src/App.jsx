@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, ReferenceLine } from "recharts";
 import PlayerReport from './PlayerReport';
+import { supabase } from "./supabase";
+import Login from "./Login";
 
 // ─── CONFIG ───────────────────────────────────────────────
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx5lLUkcdWHt9PJTd-EQuJlkdR48nc_oSthzC_e36pLr5nGXfkZGWzjbB12M-2MBH3gDw/exec";
@@ -16,13 +18,13 @@ const PLAYERS = [
   "Wagnières Roxane"
 ].map((name, i) => ({ id: i + 1, name, num: i + 1 }));
 
-// ─── DEMO DATA ────────────────────────────────────────────
 const DEMO_E = [
-  { date:"2026-08-08", joueur:"Afonso Kiara", rpe:7, sommeil:3, fatigue:6, stress:4, douleurs:5, localisation:"Genoux", enPeriode:"Non", type:"entrainement" },
-  { date:"2026-08-08", joueur:"Agushi Liza", rpe:5, sommeil:2, fatigue:3, stress:2, douleurs:1, localisation:"Aucune", enPeriode:"Oui", type:"entrainement" },
-  { date:"2026-08-08", joueur:"Moretti Laura", rpe:8, sommeil:5, fatigue:7, stress:6, douleurs:6, localisation:"Ischios", enPeriode:"Non", type:"entrainement" },
-  { date:"2026-08-08", joueur:"Chassagnot Kyméa", rpe:6, sommeil:4, fatigue:5, stress:3, douleurs:2, localisation:"Aucune", enPeriode:"Non", type:"entrainement" },
-  { date:"2026-08-08", joueur:"Kasdi Tessa Thanina", rpe:9, sommeil:6, fatigue:8, stress:7, douleurs:7, localisation:"Mollets", enPeriode:"Oui", type:"entrainement" },
+  { date:"2026-08-08", joueur:"Afonso Kiara", rpe:7, sommeil:3, fatigue:6, stress:4, douleurs:5, localisation:"Genoux", enPeriode:"Non", douleursMenstruelles:0, type:"entrainement" },
+  { date:"2026-08-08", joueur:"Agushi Liza", rpe:5, sommeil:2, fatigue:3, stress:2, douleurs:1, localisation:"Aucune", enPeriode:"Oui", douleursMenstruelles:3, type:"entrainement" },
+  { date:"2026-08-08", joueur:"Moretti Laura", rpe:8, sommeil:5, fatigue:7, stress:6, douleurs:6, localisation:"Ischios", enPeriode:"Non", douleursMenstruelles:0, type:"entrainement" },
+  { date:"2026-08-08", joueur:"Chassagnot Kyméa", rpe:6, sommeil:4, fatigue:5, stress:3, douleurs:2, localisation:"Aucune", enPeriode:"Non", douleursMenstruelles:0, type:"entrainement" },
+  { date:"2026-08-08", joueur:"Kasdi Tessa Thanina", rpe:9, sommeil:6, fatigue:8, stress:7, douleurs:7, localisation:"Mollets", enPeriode:"Oui", douleursMenstruelles:4, type:"entrainement" },
+  { date:"2026-08-08", joueur:"Dénéreaz Gabriella", rpe:5, sommeil:3, fatigue:4, stress:3, douleurs:2, localisation:"Aucune", enPeriode:"Oui", douleursMenstruelles:2, type:"entrainement" },
 ];
 const DEMO_M = [
   { date:"2026-08-05", joueur:"Afonso Kiara", sommeil:3, fatigue:4, stress:3, humeur:3, douleurs:4, localisation:"Genoux", heuresSommeil:"6-7h", parlerStaff:"Non", type:"match" },
@@ -30,7 +32,6 @@ const DEMO_M = [
   { date:"2026-08-05", joueur:"Moretti Laura", sommeil:4, fatigue:5, stress:4, humeur:2, douleurs:5, localisation:"Ischios", heuresSommeil:"5-6h", parlerStaff:"Oui", type:"match" },
 ];
 
-// ─── HELPERS ──────────────────────────────────────────────
 const norm10 = (v, max) => v ? Math.round((v / max) * 10) : 0;
 
 function computeRisk(entries) {
@@ -41,7 +42,6 @@ function computeRisk(entries) {
 }
 const riskLevel = s => !s ? "none" : s >= 6 ? "high" : s >= 4 ? "medium" : "low";
 const RC = { high:"#ef4444", medium:"#f59e0b", low:"#22c55e", none:"#475569" };
-const RL = { high:"⚠ Risque", medium:"~ Surveiller", low:"✓ OK", none:"—" };
 const ZC = { "Ischios":"#f97316","Mollets":"#06b6d4","Quadriceps":"#8b5cf6","Genoux":"#ec4899","Chevilles":"#84cc16","Dos":"#64748b","Épaules":"#f59e0b" };
 
 function useIsMobile() {
@@ -86,7 +86,7 @@ function PlayerCardMobile({ p, onClick }) {
   const mx = isM ? 5 : 10;
   return (
     <div onClick={() => onClick(p)}
-      style={{ background:"#0d1b2a", border:`1px solid ${p.level==="high"?"#7f1d1d":p.level==="medium"?"#451a03":"#1a2f45"}`, borderRadius:12, padding:"14px 14px", cursor:"pointer", display:"flex", alignItems:"center", gap:12 }}>
+      style={{ background:"#0d1b2a", border:`1px solid ${p.level==="high"?"#7f1d1d":p.level==="medium"?"#451a03":"#1a2f45"}`, borderRadius:12, padding:"14px", cursor:"pointer", display:"flex", alignItems:"center", gap:12 }}>
       <div style={{ width:42, height:42, borderRadius:"50%", background:`${RC[p.level]}15`, border:`2px solid ${RC[p.level]}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:900, color:RC[p.level], flexShrink:0 }}>
         {p.num}
       </div>
@@ -110,6 +110,7 @@ function PlayerCardMobile({ p, onClick }) {
 
 export default function App() {
   const isMobile = useIsMobile();
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(false);
   const [isDemo, setIsDemo] = useState(true);
   const [entrainement, setEntrainement] = useState(DEMO_E);
@@ -117,6 +118,19 @@ export default function App() {
   const [selected, setSelected] = useState(null);
   const [tab, setTab] = useState("dashboard");
   const [search, setSearch] = useState("");
+
+  // Auth Supabase
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setUser(data.session?.user || null);
+    });
+    supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
+    });
+  }, []);
+
+  // Si pas connecté → page login
+  if (!user) return <Login onLogin={setUser} />;
 
   const allEntries = useMemo(() => [...entrainement, ...matchData].sort((a,b) => a.date.localeCompare(b.date)), [entrainement, matchData]);
 
@@ -131,7 +145,10 @@ export default function App() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { loadData(); }, []);
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+  };
 
   const playerStats = useMemo(() => PLAYERS.map(p => {
     const entries = allEntries.filter(e => e.joueur === p.name).sort((a,b) => a.date.localeCompare(b.date));
@@ -158,6 +175,7 @@ export default function App() {
   const CARD = "#0d1b2a";
   const BORDER = "#1a2f45";
   const MP = isMobile ? 12 : 24;
+  const PINK = "#ec4899";
 
   const TABS = [
     { id:"dashboard", icon:"📊", label:"Bord" },
@@ -172,7 +190,7 @@ export default function App() {
       <div style={{ background:"#080f1a", borderBottom:`1px solid ${BORDER}`, padding:`0 ${MP}px`, position:"sticky", top:0, zIndex:50 }}>
         <div style={{ maxWidth:1100, margin:"0 auto", display:"flex", alignItems:"center", justifyContent:"space-between", height: isMobile ? 52 : 58 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <div style={{ width:32, height:32, background:"linear-gradient(135deg,#ec4899,#8b5cf6)", borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0 }}>⚽</div>
+            <div style={{ width:32, height:32, background:`linear-gradient(135deg,${PINK},#8b5cf6)`, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0 }}>⚽</div>
             <div>
               <div style={{ fontWeight:900, fontSize: isMobile ? 14 : 15, color:"#e2f4ff" }}>Wellness FC — Féminin</div>
               {!isMobile && <div style={{ fontSize:10, color:"#2d5070", letterSpacing:1.5, textTransform:"uppercase" }}>Saison 2026/27</div>}
@@ -180,9 +198,14 @@ export default function App() {
           </div>
           <div style={{ display:"flex", gap:8, alignItems:"center" }}>
             {isDemo && <span style={{ background:"#f59e0b22", color:"#f59e0b", border:"1px solid #f59e0b44", borderRadius:99, padding:"2px 7px", fontSize:10, fontWeight:700 }}>DÉMO</span>}
+            {!isMobile && <span style={{ color:"#2d5070", fontSize:11 }}>{user.email}</span>}
             <button onClick={loadData} disabled={loading}
               style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:8, color:"#38bdf8", padding: isMobile ? "6px 10px" : "6px 14px", cursor:"pointer", fontWeight:600, fontSize: isMobile ? 13 : 12 }}>
               {loading ? "⟳" : "↻"}{!isMobile && " Actualiser"}
+            </button>
+            <button onClick={handleLogout}
+              style={{ background:"none", border:`1px solid ${BORDER}`, borderRadius:8, color:"#4a6480", padding: isMobile ? "6px 10px" : "6px 14px", cursor:"pointer", fontSize: isMobile ? 13 : 12 }}>
+              {isMobile ? "⏻" : "Déconnexion"}
             </button>
           </div>
         </div>
@@ -194,7 +217,7 @@ export default function App() {
           <div style={{ maxWidth:1100, margin:"0 auto", display:"flex" }}>
             {TABS.map(t => (
               <button key={t.id} onClick={() => { setTab(t.id); setSelected(null); }}
-                style={{ background:"none", border:"none", borderBottom: tab===t.id ? "2px solid #ec4899" : "2px solid transparent", color: tab===t.id ? "#ec4899" : "#2d4a63", padding:"12px 18px", cursor:"pointer", fontWeight:700, fontSize:13, fontFamily:"inherit" }}>
+                style={{ background:"none", border:"none", borderBottom: tab===t.id ? `2px solid ${PINK}` : "2px solid transparent", color: tab===t.id ? PINK : "#2d4a63", padding:"12px 18px", cursor:"pointer", fontWeight:700, fontSize:13, fontFamily:"inherit" }}>
                 {t.icon} {t.label}
               </button>
             ))}
@@ -205,29 +228,26 @@ export default function App() {
       {/* CONTENU */}
       <div style={{ maxWidth:1100, margin:"0 auto", padding: isMobile ? "14px 12px" : "24px", paddingBottom: isMobile ? 80 : 24 }}>
 
-        {/* FICHE JOUEUR */}
         {selected && (
           <PlayerReport player={selected} allEntries={allEntries} allTempsJeu={[]} onBack={() => setSelected(null)} isMobile={isMobile} />
         )}
 
-        {/* DASHBOARD */}
         {!selected && tab === "dashboard" && (
           <div>
             <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap: isMobile ? 8 : 12, marginBottom: isMobile ? 12 : 20 }}>
-              <KPI label="Effectif" value={PLAYERS.length} color="#ec4899" icon="👥" mobile={isMobile} />
+              <KPI label="Effectif" value={PLAYERS.length} color={PINK} icon="👥" mobile={isMobile} />
               <KPI label="Alertes" value={alerts.length} color={alerts.length>0?"#ef4444":"#22c55e"} icon="⚠" mobile={isMobile} />
               <KPI label="Fatigue moy." value={avgFatigue} color="#f59e0b" icon="📈" mobile={isMobile} />
-              <KPI label="En période 🌸" value={enPeriodeCount} color="#ec4899" icon="🌸" mobile={isMobile} />
+              <KPI label="En période 🌸" value={enPeriodeCount} color={PINK} icon="🌸" mobile={isMobile} />
             </div>
 
-            {/* Alerte période */}
             {enPeriodeCount > 0 && (
-              <div style={{ background:"#1a0010", border:"1px solid #9d174d", borderRadius:12, padding:"12px 14px", marginBottom:10 }}>
-                <div style={{ color:"#ec4899", fontWeight:700, fontSize:12, marginBottom:6 }}>🌸 JOUEUSES EN PÉRIODE</div>
+              <div style={{ background:"#1a0010", border:`1px solid #9d174d`, borderRadius:12, padding:"12px 14px", marginBottom:10 }}>
+                <div style={{ color:PINK, fontWeight:700, fontSize:12, marginBottom:6 }}>🌸 JOUEUSES EN PÉRIODE</div>
                 <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
                   {playerStats.filter(p => p.enPeriode).map(p => (
                     <div key={p.id} onClick={() => setSelected(p)}
-                      style={{ background:"#2d0018", border:"1px solid #9d174d", borderRadius:8, padding:"5px 12px", cursor:"pointer", color:"#ec4899", fontWeight:600, fontSize:12 }}>
+                      style={{ background:"#2d0018", border:`1px solid #9d174d`, borderRadius:8, padding:"5px 12px", cursor:"pointer", color:PINK, fontWeight:600, fontSize:12 }}>
                       {isMobile ? p.name.split(" ")[0] : p.name}
                     </div>
                   ))}
@@ -235,7 +255,6 @@ export default function App() {
               </div>
             )}
 
-            {/* Alerte staff */}
             {staffCalls.length > 0 && (
               <div style={{ background:"#140c00", border:"1px solid #92400e", borderRadius:12, padding:"12px 14px", marginBottom:10 }}>
                 <div style={{ color:"#fbbf24", fontWeight:700, fontSize:12, marginBottom:8 }}>💬 SOUHAITE PARLER AU STAFF</div>
@@ -250,7 +269,6 @@ export default function App() {
               </div>
             )}
 
-            {/* Alertes risque */}
             {alerts.length > 0 && (
               <div style={{ background:"#110000", border:"1px solid #7f1d1d", borderRadius:12, padding:"12px 14px", marginBottom:10 }}>
                 <div style={{ color:"#ef4444", fontWeight:700, fontSize:12, marginBottom:8 }}>⚠ JOUEUSES À RISQUE ÉLEVÉ</div>
@@ -270,7 +288,6 @@ export default function App() {
               </div>
             )}
 
-            {/* Tableau effectif */}
             <div style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:12, overflow:"hidden" }}>
               <div style={{ padding:"12px 14px", borderBottom:"1px solid #0d1b2a", display:"flex", justifyContent:"space-between", alignItems:"center", gap:8 }}>
                 <span style={{ color:"#2d5070", fontSize:10, fontWeight:700, letterSpacing:2, textTransform:"uppercase", whiteSpace:"nowrap" }}>Effectif</span>
@@ -319,7 +336,7 @@ export default function App() {
                                     : <span style={{ color:"#1e3a52" }}>—</span>}
                                 </td>
                                 <td style={{ padding:"11px 14px", textAlign:"center" }}>
-                                  {p.enPeriode ? <span title="En période">🌸</span> : <span style={{ color:"#1e3a52" }}>—</span>}
+                                  {p.enPeriode ? <span>🌸</span> : <span style={{ color:"#1e3a52" }}>—</span>}
                                 </td>
                                 <td style={{ padding:"11px 14px", color:RC[p.level], fontWeight:800 }}>{p.score}</td>
                               </>
@@ -335,7 +352,6 @@ export default function App() {
           </div>
         )}
 
-        {/* EFFECTIF */}
         {!selected && tab === "players" && (
           <div>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher une joueuse..."
@@ -346,23 +362,20 @@ export default function App() {
           </div>
         )}
 
-        {/* MATCHS */}
         {!selected && tab === "matches" && (
           <div style={{ color:"#2d5070", textAlign:"center", padding:60, fontSize:14 }}>
-            Aucune donnée de match pour le moment.<br/>
-            <span style={{ fontSize:12 }}>Les données apparaîtront après le premier match.</span>
+            Aucune donnée de match pour le moment.
           </div>
         )}
       </div>
 
-      {/* NAV MOBILE BAS */}
       {isMobile && !selected && (
         <div style={{ position:"fixed", bottom:0, left:0, right:0, background:"#080f1a", borderTop:`1px solid ${BORDER}`, display:"flex", zIndex:100 }}>
           {TABS.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               style={{ flex:1, background:"none", border:"none", padding:"10px 0 12px", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:3, fontFamily:"inherit",
-                color: tab===t.id ? "#ec4899" : "#2d4a63",
-                borderTop: tab===t.id ? "2px solid #ec4899" : "2px solid transparent" }}>
+                color: tab===t.id ? PINK : "#2d4a63",
+                borderTop: tab===t.id ? `2px solid ${PINK}` : "2px solid transparent" }}>
               <span style={{ fontSize:22 }}>{t.icon}</span>
               <span style={{ fontSize:11, fontWeight:700 }}>{t.label}</span>
             </button>
