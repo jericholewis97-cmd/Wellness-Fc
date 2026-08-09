@@ -66,7 +66,7 @@ export default function Matches({ players, matchWellness = [], tempsJeu = [], on
     const d = {};
     players.forEach(p => {
       const existing = tempsJeu.find(t => t.date === date && (t.adversaire || "") === (adversaire || "") && t.joueur === p.name);
-      d[p.name] = { minutes: existing?.minutes || 0, commentaire: existing?.commentaire || "" };
+      d[p.name] = { minutes: existing?.minutes || 0, commentaire: existing?.commentaire || "", titulaire: existing?.titulaire || "" };
     });
     setDraft(d);
     setEditing({ date, adversaire: adversaire || "" });
@@ -91,6 +91,7 @@ export default function Matches({ players, matchWellness = [], tempsJeu = [], on
       adversaire: editing.adversaire,
       joueur: p.name,
       minutes: Number(draft[p.name]?.minutes) || 0,
+      titulaire: draft[p.name]?.titulaire || "",
       commentaire: draft[p.name]?.commentaire || "",
     }));
     try {
@@ -149,6 +150,22 @@ export default function Matches({ players, matchWellness = [], tempsJeu = [], on
                     style={{ width:64, background:"#060e18", border:`1px solid ${BORDER}`, borderRadius:8, color:"#c8dff0", padding:"7px 8px", fontSize:13, outline:"none" }}
                   />
                   <span style={{ color:"#2d5070", fontSize:11 }}>min</span>
+                </div>
+                <div style={{ display:"flex", gap:4 }}>
+                  {["Titulaire", "Remplaçante"].map(opt => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => updateDraft(p.name, "titulaire", draft[p.name]?.titulaire === opt ? "" : opt)}
+                      style={{
+                        background: draft[p.name]?.titulaire === opt ? PINK : "#060e18",
+                        border: `1px solid ${draft[p.name]?.titulaire === opt ? PINK : BORDER}`,
+                        borderRadius: 8, color: draft[p.name]?.titulaire === opt ? "#fff" : "#4a6480",
+                        padding: "6px 10px", cursor: "pointer", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap"
+                      }}>
+                      {opt}
+                    </button>
+                  ))}
                 </div>
                 <input
                   type="text"
