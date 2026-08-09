@@ -4,7 +4,7 @@ import PlayerReport from './PlayerReport';
 import Login from "./Login";
 import Matches from "./Matches";
 
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx5lLUkcdWHt9PJTd-EQuJlkdR48nc_oSthzC_e36pLr5nGXfkZGWzjbB12M-2MBH3gDw/exec";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyrZx9S7XA7_qiGKs1Wd8rK1vExSaVXOrO6ojohJlsTMl1CCWdeaZ2Y1S6EIUeM5SGEeQ/exec";
 
 const PLAYERS = [
   "Afonso Kiara","Agushi Liza","Barbosa da Silva Neto Giovanna Maria",
