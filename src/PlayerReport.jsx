@@ -87,6 +87,32 @@ ${stats.enPeriodeCount > 0 ? `
 </div>` : ""}
 
 <div class="section">
+  <div class="section-title">🏥 Blessures déclarées durant la période</div>
+  ${stats.blessures.length === 0
+    ? `<div style="color:#16a34a;font-size:12px">✓ Aucune blessure significative déclarée sur cette période</div>`
+    : stats.blessures.map(b => `<div class="metric-row"><span>${b.date.split("-").reverse().join("/")} — ${b.localisation}</span><span style="color:#b91c1c;font-weight:700">${b.douleurs}/${b.type==="match"?5:10}</span></div>`).join("")}
+</div>
+
+<div class="section">
+  <div class="section-title">🏆 Participation aux matchs</div>
+  <div class="kpis" style="grid-template-columns:repeat(3,1fr)">
+    <div class="kpi"><div class="kv" style="color:#0369a1">${stats.matchsJoues.length}</div><div class="kl">Matchs joués</div></div>
+    <div class="kpi"><div class="kv" style="color:#9d174d">${stats.totalMinutes}'</div><div class="kl">Minutes totales</div></div>
+    <div class="kpi"><div class="kv" style="color:#b45309">${stats.moyenneMinutes || "—"}${stats.moyenneMinutes ? "'" : ""}</div><div class="kl">Moy. / match</div></div>
+  </div>
+  ${stats.matchsJoues.length === 0
+    ? `<div style="color:#9ca3af;font-size:12px;margin-top:8px">Aucun temps de jeu enregistré sur cette période</div>`
+    : stats.matchsJoues.map(m => `
+      <div class="period-box" style="margin-top:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <strong>${m.adversaire ? `vs ${m.adversaire}` : "Match"} — ${m.date.split("-").reverse().join("/")}</strong>
+          <span>${m.titulaire ? `<span class="badge" style="margin-right:6px">${m.titulaire}</span>` : ""}<span style="color:#9d174d;font-weight:800">${m.minutes}'</span></span>
+        </div>
+        ${m.commentaire ? `<div style="margin-top:4px;color:#6b7280;font-style:italic">« ${m.commentaire} »</div>` : ""}
+      </div>`).join("")}
+</div>
+
+<div class="section">
   <div class="section-title">Recommandations personnalisées</div>
   ${stats.recommendations.map(r => `<div class="rec-item"><span>${r.icon}</span><div><strong>${r.title}</strong><br><span style="color:#6b7280">${r.text}</span></div></div>`).join("")}
 </div>
@@ -168,18 +194,20 @@ export default function PlayerReport({ player, allEntries, allTempsJeu = [], onB
     { m:"Humeur",   v: avgHumeur || 5 },
   ];
 
-  // Participation matchs (temps de jeu + commentaires saisis par le staff)
+  // Participation matchs (temps de jeu + commentaires saisis par le staff), filtrée sur la période active
   const matchsJoues = useMemo(
-    () => allTempsJeu
-      .filter(t => t.joueur === player.name && (t.minutes || 0) > 0)
-      .sort((a, b) => b.date.localeCompare(a.date)),
-    [allTempsJeu, player]
+    () => filterPeriod(
+      allTempsJeu.filter(t => t.joueur === player.name && (t.minutes || 0) > 0),
+      period
+    ).sort((a, b) => b.date.localeCompare(a.date)),
+    [allTempsJeu, player, period]
   );
   const totalMinutes = matchsJoues.reduce((s, t) => s + (t.minutes || 0), 0);
   const moyenneMinutes = matchsJoues.length ? Math.round(totalMinutes / matchsJoues.length) : 0;
 
   const stats = { entries, score, avgFatigue, avgSommeil, avgStress, avgDouleurs, avgHumeur,
-    enPeriodeCount, avgDouleursMenst, blessures, blessuresCount, alerts, recommendations, level };
+    enPeriodeCount, avgDouleursMenst, blessures, blessuresCount, alerts, recommendations, level,
+    matchsJoues, totalMinutes, moyenneMinutes };
 
   const periodLabel = { month:"Dernier mois", quarter:"3 derniers mois", season:"Toute la saison" };
   const PINK = "#ec4899";
