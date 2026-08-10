@@ -122,6 +122,7 @@ export default function App() {
   const isMobile = useIsMobile();
   const [user, setUser] = useState(getSavedUser);
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [isDemo, setIsDemo] = useState(true);
   const [entrainement, setEntrainement] = useState(DEMO_E);
   const [matchData, setMatchData] = useState(DEMO_M);
@@ -169,12 +170,28 @@ export default function App() {
   // Charge automatiquement les vraies données dès la connexion (ou la reconnexion
   // automatique via "se souvenir de moi"), sans attendre un clic manuel sur Actualiser.
   useEffect(() => {
-    if (user) loadData();
+    if (user) {
+      loadData().finally(() => setInitialLoading(false));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   // Si pas connecté → page login (placé APRÈS tous les hooks)
   if (!user) return <Login onLogin={setUser} />;
+
+  // Tant que le tout premier chargement n'est pas terminé, on affiche un écran
+  // de chargement plutôt que le dashboard avec les données de démo (évite le
+  // "flash" de la démo avant que les vraies données arrivent).
+  if (initialLoading) {
+    return (
+      <div style={{ minHeight:"100vh", background:"#060e18", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'DM Sans','Segoe UI',sans-serif" }}>
+        <div style={{ textAlign:"center" }}>
+          <div style={{ fontSize:32, marginBottom:12 }}>⚽</div>
+          <div style={{ color:"#4a6480", fontSize:13 }}>Chargement des données...</div>
+        </div>
+      </div>
+    );
+  }
 
   // Enregistre le temps de jeu + commentaires d'un match (staff) dans le Sheet,
   // puis recharge les données pour refléter le changement.
@@ -198,6 +215,7 @@ export default function App() {
   const handleLogout = () => {
     try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
     setUser(null);
+    setInitialLoading(true);
   };
 
   const alerts = playerStats.filter(p => p.level === "high");
