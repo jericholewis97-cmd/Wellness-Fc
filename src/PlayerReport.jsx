@@ -28,8 +28,9 @@ function computeRisk(entries) {
 
 const riskLevel = s => !s ? "none" : s >= 6 ? "high" : s >= 4 ? "medium" : "low";
 
-function generatePDF(player, stats, period) {
+function generatePDF(player, stats, period, typeFilter) {
   const periodLabel = period === "month" ? "Mensuel" : period === "quarter" ? "Trimestriel" : "Saison complète";
+  const typeLabel = typeFilter === "entrainement" ? " · Entraînements uniquement" : typeFilter === "match" ? " · Matchs uniquement" : "";
   const now = new Date().toLocaleDateString("fr-FR");
   const html = `<!DOCTYPE html>
 <html lang="fr"><head><meta charset="UTF-8"><title>Fiche ${player.name}</title>
@@ -59,7 +60,7 @@ body{font-family:Arial,sans-serif;color:#1a1a2e;font-size:13px}
 <div class="header">
   <div>
     <div class="name">⚽ ${player.name}</div>
-    <div class="sub">Rapport ${periodLabel} · Généré le ${now}</div>
+    <div class="sub">Rapport ${periodLabel}${typeLabel} · Généré le ${now}</div>
     <div style="margin-top:6px">
       <span class="badge">${stats.entries.length} saisies</span>
       <span class="badge" style="background:${stats.level==="high"?"#fee2e2":stats.level==="medium"?"#fef3c7":"#dcfce7"};color:${RC[stats.level]};border-color:${RC[stats.level]}44">
@@ -133,11 +134,13 @@ ${stats.enPeriodeCount > 0 ? `
 
 export default function PlayerReport({ player, allEntries, allTempsJeu = [], onBack, isMobile }) {
   const [period, setPeriod] = useState("month");
+  const [typeFilter, setTypeFilter] = useState("all"); // "all" | "entrainement" | "match"
 
-  const entries = useMemo(() =>
-    filterPeriod(allEntries.filter(e => e.joueur === player.name).sort((a,b) => a.date.localeCompare(b.date)), period),
-    [allEntries, player, period]
-  );
+  const entries = useMemo(() => {
+    let filtered = allEntries.filter(e => e.joueur === player.name);
+    if (typeFilter !== "all") filtered = filtered.filter(e => e.type === typeFilter);
+    return filterPeriod(filtered.sort((a,b) => a.date.localeCompare(b.date)), period);
+  }, [allEntries, player, period, typeFilter]);
 
   const score = computeRisk(entries);
   const level = riskLevel(score);
@@ -224,6 +227,16 @@ export default function PlayerReport({ player, allEntries, allTempsJeu = [], onB
   return (
     <div style={{ fontFamily:"'DM Sans','Segoe UI',sans-serif", color:"#c8dff0", paddingBottom: isMobile ? 80 : 0 }}>
 
+      {/* Onglets type de données */}
+      <div style={{ display:"flex", gap:6, marginBottom:12, flexWrap:"wrap" }}>
+        {[["all","Tout"],["entrainement","🏃 Entraînement"],["match","🏆 Match"]].map(([k,v]) => (
+          <button key={k} onClick={() => setTypeFilter(k)}
+            style={{ background: typeFilter===k ? "#0d1b2a" : "transparent", border:`1px solid ${typeFilter===k?PINK:"#1a2f45"}`, borderRadius:8, color: typeFilter===k?PINK:"#4a6480", padding:"7px 14px", cursor:"pointer", fontWeight:700, fontSize:12 }}>
+            {v}
+          </button>
+        ))}
+      </div>
+
       {/* Boutons période + PDF */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16, flexWrap:"wrap", gap:8 }}>
         <button onClick={onBack} style={{ background:"none", border:"1px solid #1a2f45", borderRadius:8, color:"#4a6480", padding:"6px 14px", cursor:"pointer", fontSize:12 }}>
@@ -236,7 +249,7 @@ export default function PlayerReport({ player, allEntries, allTempsJeu = [], onB
               {v}
             </button>
           ))}
-          <button onClick={() => generatePDF(player, stats, period)}
+          <button onClick={() => generatePDF(player, stats, period, typeFilter)}
             style={{ background:`linear-gradient(135deg,${PINK},#8b5cf6)`, border:"none", borderRadius:8, color:"#fff", padding:"6px 14px", cursor:"pointer", fontWeight:700, fontSize:11 }}>
             📄 PDF
           </button>
