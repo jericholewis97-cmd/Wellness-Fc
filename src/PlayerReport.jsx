@@ -5,7 +5,9 @@ import {
   BarChart, Bar, Cell
 } from "recharts";
 
-const norm = (v, max) => v ? Math.round((v / max) * 10) : 0;
+// Plafonne toujours entre 0 et 10, même si une réponse brute dépasse le barème
+// attendu (ex: une joueuse qui tape "14" au lieu d'une note entre 1 et 10)
+const norm = (v, max) => v ? Math.max(0, Math.min(10, Math.round((v / max) * 10))) : 0;
 const RC = { high:"#ef4444", medium:"#f59e0b", low:"#22c55e", none:"#475569" };
 const ZC = { "Ischios":"#f97316","Mollets":"#06b6d4","Quadriceps":"#8b5cf6","Genoux":"#ec4899","Chevilles":"#84cc16","Dos":"#64748b","Épaules":"#f59e0b" };
 
@@ -147,7 +149,7 @@ export default function PlayerReport({ player, allEntries, allTempsJeu = [], onB
   const avgSommeil  = avg(entries, "sommeil", maxOf);
   const avgStress   = avg(entries, "stress",  maxOf);
   const avgDouleurs = avg(entries, "douleurs", maxOf);
-  const avgHumeur   = avg(entries.filter(e=>e.humeur), "humeur", ()=>5) * 2;
+  const avgHumeur   = avg(entries.filter(e=>e.humeur), "humeur", ()=>5);
 
   // Données menstruelles
   const enPeriodeEntries = entries.filter(e => e.enPeriode === "Oui");
@@ -375,16 +377,17 @@ export default function PlayerReport({ player, allEntries, allTempsJeu = [], onB
               <tbody>
                 {entries.slice().reverse().map((e, i) => {
                   const mx = maxOf(e);
+                  const hors = (v) => v > mx;
                   return (
                     <tr key={i} style={{ borderBottom:"1px solid #0a1520" }}>
                       <td style={{ padding:"7px 10px", color:"#94b8d0", whiteSpace:"nowrap" }}>{e.date.split("-").reverse().join("/")}</td>
                       <td style={{ padding:"7px 10px", color:"#4a6480" }}>{e.type === "match" ? "🏆 Match" : "🏃 Entraîn."}</td>
-                      <td style={{ padding:"7px 10px", color:"#38bdf8", fontWeight:700 }}>{e.sommeil}/{mx}</td>
-                      <td style={{ padding:"7px 10px", color:"#ef4444", fontWeight:700 }}>{e.fatigue}/{mx}</td>
-                      <td style={{ padding:"7px 10px", color:"#f59e0b", fontWeight:700 }}>{e.stress}/{mx}</td>
-                      <td style={{ padding:"7px 10px", color: e.douleurs >= (e.type==="match"?3:6) ? "#ef4444" : "#a78bfa", fontWeight:700 }}>{e.douleurs}/{mx}</td>
+                      <td style={{ padding:"7px 10px", color:"#38bdf8", fontWeight:700 }}>{e.sommeil}/{mx}{hors(e.sommeil) && " ⚠"}</td>
+                      <td style={{ padding:"7px 10px", color:"#ef4444", fontWeight:700 }}>{e.fatigue}/{mx}{hors(e.fatigue) && " ⚠"}</td>
+                      <td style={{ padding:"7px 10px", color:"#f59e0b", fontWeight:700 }}>{e.stress}/{mx}{hors(e.stress) && " ⚠"}</td>
+                      <td style={{ padding:"7px 10px", color: e.douleurs >= (e.type==="match"?3:6) ? "#ef4444" : "#a78bfa", fontWeight:700 }}>{e.douleurs}/{mx}{hors(e.douleurs) && " ⚠"}</td>
                       <td style={{ padding:"7px 10px", color:"#4a6480" }}>{e.localisation && e.localisation !== "Aucune" ? e.localisation : "—"}</td>
-                      <td style={{ padding:"7px 10px", color:PINK }}>{e.humeur ? `${e.humeur}/5` : "—"}</td>
+                      <td style={{ padding:"7px 10px", color:PINK }}>{e.humeur ? `${e.humeur}/5${e.humeur > 5 ? " ⚠" : ""}` : "—"}</td>
                     </tr>
                   );
                 })}
