@@ -28,6 +28,47 @@ function computeRisk(entries) {
 
 const riskLevel = s => !s ? "none" : s >= 6 ? "high" : s >= 4 ? "medium" : "low";
 
+// Génère une courbe SVG (Fatigue/Sommeil/Stress/Douleurs) intégrée directement dans le PDF,
+// à partir d'une liste d'entrées chronologiques (entraînement OU match).
+function buildTrendSvg(title, entries) {
+  if (!entries.length) {
+    return `<div class="section"><div class="section-title">${title}</div><div style="color:#9ca3af;font-size:12px">Aucune donnée sur cette période</div></div>`;
+  }
+  const maxOfE = e => e.type === "match" ? 5 : 10;
+  const w = 700, h = 150, padL = 24, padR = 10, padT = 10, padB = 10;
+  const innerW = w - padL - padR, innerH = h - padT - padB;
+  const n = entries.length;
+  const xFor = i => padL + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
+  const yFor = v => padT + innerH - (v / 10) * innerH;
+  const metrics = [
+    { key: "fatigue", color: "#ef4444", label: "Fatigue" },
+    { key: "sommeil", color: "#38bdf8", label: "Sommeil" },
+    { key: "stress", color: "#f59e0b", label: "Stress" },
+    { key: "douleurs", color: "#7c3aed", label: "Douleurs" },
+  ];
+  const gridLines = [0, 5, 10].map(v =>
+    `<line x1="${padL}" y1="${yFor(v)}" x2="${w - padR}" y2="${yFor(v)}" stroke="#f3d4e4" stroke-width="1"/>
+     <text x="0" y="${yFor(v) + 3}" font-size="8" fill="#9ca3af">${v}</text>`
+  ).join("");
+  const polylines = metrics.map(m => {
+    const pts = entries.map((e, i) => `${xFor(i)},${yFor(norm(e[m.key], maxOfE(e)))}`).join(" ");
+    return `<polyline points="${pts}" fill="none" stroke="${m.color}" stroke-width="2"/>`;
+  }).join("");
+  const legend = metrics.map(m =>
+    `<span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;font-size:9px;color:#6b7280">
+       <span style="display:inline-block;width:10px;height:2px;background:${m.color}"></span>${m.label}
+     </span>`
+  ).join("");
+  const firstDate = entries[0].date.split("-").reverse().join("/");
+  const lastDate = entries[n - 1].date.split("-").reverse().join("/");
+  return `<div class="section" style="page-break-inside:avoid">
+    <div class="section-title">${title} (${n} saisie${n > 1 ? "s" : ""})</div>
+    <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:${h}px">${gridLines}${polylines}</svg>
+    <div style="display:flex;justify-content:space-between;font-size:9px;color:#9ca3af;margin-top:2px"><span>${firstDate}</span><span>${lastDate}</span></div>
+    <div style="margin-top:4px">${legend}</div>
+  </div>`;
+}
+
 function generatePDF(player, stats, period, typeFilter) {
   const periodLabel = period === "month" ? "Mensuel" : period === "quarter" ? "Trimestriel" : "Saison complète";
   const typeLabel = typeFilter === "entrainement" ? " · Entraînements uniquement" : typeFilter === "match" ? " · Matchs uniquement" : "";
@@ -89,6 +130,9 @@ ${stats.enPeriodeCount > 0 ? `
     ${stats.avgDouleursMenst >= 3 ? `<div style="margin-top:4px;color:#b91c1c">⚠ Douleurs significatives — adapter la charge d'entraînement</div>` : ""}
   </div>
 </div>` : ""}
+
+${buildTrendSvg("📈 Courbe Entraînement", stats.entrainementEntries)}
+${buildTrendSvg("📈 Courbe Match", stats.matchEntries)}
 
 <div class="section">
   <div class="section-title">🏥 Blessures déclarées durant la période</div>
@@ -183,6 +227,17 @@ export default function PlayerReport({ player, allEntries, allTempsJeu = [], onB
     return filterPeriod(filtered.sort((a,b) => a.date.localeCompare(b.date)), period);
   }, [allEntries, player, period, typeFilter]);
 
+  // Toujours calculées séparément (indépendamment de l'onglet actif) pour alimenter
+  // les deux courbes distinctes Entraînement / Match du rapport PDF.
+  const entrainementEntries = useMemo(() => filterPeriod(
+    allEntries.filter(e => e.joueur === player.name && e.type === "entrainement").sort((a,b) => a.date.localeCompare(b.date)),
+    period
+  ), [allEntries, player, period]);
+  const matchEntries = useMemo(() => filterPeriod(
+    allEntries.filter(e => e.joueur === player.name && e.type === "match").sort((a,b) => a.date.localeCompare(b.date)),
+    period
+  ), [allEntries, player, period]);
+
   const score = computeRisk(entries);
   const level = riskLevel(score);
 
@@ -253,7 +308,7 @@ export default function PlayerReport({ player, allEntries, allTempsJeu = [], onB
 
   const stats = { entries, score, avgFatigue, avgSommeil, avgStress, avgDouleurs, avgHumeur,
     enPeriodeCount, avgDouleursMenst, blessures, blessuresCount, alerts, recommendations, level,
-    matchsJoues, totalMinutes, moyenneMinutes };
+    matchsJoues, totalMinutes, moyenneMinutes, entrainementEntries, matchEntries };
 
   const periodLabel = { month:"Dernier mois", quarter:"3 derniers mois", season:"Toute la saison" };
   const PINK = "#ec4899";
