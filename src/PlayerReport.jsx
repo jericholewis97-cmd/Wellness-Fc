@@ -42,7 +42,7 @@ body{font-family:Arial,sans-serif;color:#1a1a2e;font-size:13px}
 .name{font-size:24px;font-weight:900;color:#831843}
 .sub{font-size:12px;color:#6b7280;margin-top:4px}
 .badge{background:#fce7f3;color:#9d174d;border:1px solid #f9a8d4;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;display:inline-block;margin:2px}
-.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px}
 .kpi{background:#fdf2f8;border:1px solid #f9a8d4;border-radius:10px;padding:10px;text-align:center}
 .kv{font-size:24px;font-weight:900;color:#9d174d}
 .kl{font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;margin-top:2px}
@@ -76,6 +76,7 @@ body{font-family:Arial,sans-serif;color:#1a1a2e;font-size:13px}
   <div class="kpi"><div class="kv" style="color:#ef4444">${stats.avgFatigue}/10</div><div class="kl">Fatigue moy.</div></div>
   <div class="kpi"><div class="kv" style="color:#38bdf8">${stats.avgSommeil}/10</div><div class="kl">Sommeil moy.</div></div>
   <div class="kpi"><div class="kv" style="color:#f59e0b">${stats.avgStress}/10</div><div class="kl">Stress moy.</div></div>
+  <div class="kpi"><div class="kv" style="color:#7c3aed">${stats.avgDouleurs}/10</div><div class="kl">Douleurs moy.</div></div>
   <div class="kpi"><div class="kv" style="color:#ec4899">${stats.avgHumeur||"—"}/10</div><div class="kl">Humeur moy.</div></div>
 </div>
 
@@ -94,6 +95,11 @@ ${stats.enPeriodeCount > 0 ? `
   ${stats.blessures.length === 0
     ? `<div style="color:#16a34a;font-size:12px">✓ Aucune blessure significative déclarée sur cette période</div>`
     : stats.blessures.map(b => `<div class="metric-row"><span>${b.date.split("-").reverse().join("/")} — ${b.localisation}</span><span style="color:#b91c1c;font-weight:700">${b.douleurs}/${b.type==="match"?5:10}</span></div>`).join("")}
+  ${stats.blessuresCount.length > 0 ? `
+  <div style="margin-top:8px;padding-top:8px;border-top:1px dashed #f9a8d4">
+    <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Récurrence par zone</div>
+    ${stats.blessuresCount.map(([zone,n]) => `<span class="badge" style="margin:2px">${zone} · ${n}x</span>`).join("")}
+  </div>` : ""}
 </div>
 
 <div class="section">
@@ -113,6 +119,41 @@ ${stats.enPeriodeCount > 0 ? `
         </div>
         ${m.commentaire ? `<div style="margin-top:4px;color:#6b7280;font-style:italic">« ${m.commentaire} »</div>` : ""}
       </div>`).join("")}
+</div>
+
+<div class="section" style="page-break-inside:avoid">
+  <div class="section-title">📋 Historique détaillé de toutes les réponses (${stats.entries.length})</div>
+  ${stats.entries.length === 0 ? `<div style="color:#9ca3af;font-size:12px">Aucune réponse sur cette période</div>` : `
+  <table style="width:100%;border-collapse:collapse;font-size:10px">
+    <thead>
+      <tr style="background:#fdf2f8">
+        ${["Date","Type","RPE","Sommeil","Fatigue","Stress","Douleurs","Zone","Humeur","Autres"].map(h => `<th style="padding:5px 6px;text-align:left;color:#9d174d;font-size:9px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #f9a8d4">${h}</th>`).join("")}
+      </tr>
+    </thead>
+    <tbody>
+      ${stats.entries.slice().reverse().map(e => {
+        const mx = e.type === "match" ? 5 : 10;
+        const autres = [
+          e.type === "entrainement" && e.enPeriode === "Oui" ? "🌸 En période" : "",
+          e.type === "entrainement" && e.douleursMenstruelles > 0 ? `Douleurs menst. ${e.douleursMenstruelles}/5` : "",
+          e.type === "match" && e.heuresSommeil ? `Sommeil : ${e.heuresSommeil}` : "",
+          e.type === "match" && e.parlerStaff === "Oui" ? "💬 Souhaite parler au staff" : "",
+        ].filter(Boolean).join(" · ");
+        return `<tr style="border-bottom:1px solid #fce7f3">
+          <td style="padding:5px 6px;white-space:nowrap">${e.date.split("-").reverse().join("/")}</td>
+          <td style="padding:5px 6px">${e.type === "match" ? "🏆 Match" : "🏃 Entraîn."}</td>
+          <td style="padding:5px 6px">${e.type === "entrainement" ? `${e.rpe}/10` : "—"}</td>
+          <td style="padding:5px 6px;font-weight:700">${e.sommeil}/${mx}</td>
+          <td style="padding:5px 6px;font-weight:700">${e.fatigue}/${mx}</td>
+          <td style="padding:5px 6px;font-weight:700">${e.stress}/${mx}</td>
+          <td style="padding:5px 6px;font-weight:700;color:${e.douleurs >= (e.type==="match"?3:6) ? "#b91c1c" : "#1a1a2e"}">${e.douleurs}/${mx}</td>
+          <td style="padding:5px 6px">${e.localisation && e.localisation !== "Aucune" ? e.localisation : "—"}</td>
+          <td style="padding:5px 6px">${e.humeur ? `${e.humeur}/5` : "—"}</td>
+          <td style="padding:5px 6px;color:#6b7280;font-size:9px">${autres || "—"}</td>
+        </tr>`;
+      }).join("")}
+    </tbody>
+  </table>`}
 </div>
 
 <div class="section">
