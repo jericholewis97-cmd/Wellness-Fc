@@ -51,8 +51,13 @@ function buildTrendSvg(title, entries) {
      <text x="0" y="${yFor(v) + 3}" font-size="8" fill="#9ca3af">${v}</text>`
   ).join("");
   const polylines = metrics.map(m => {
-    const pts = entries.map((e, i) => `${xFor(i)},${yFor(norm(e[m.key], maxOfE(e)))}`).join(" ");
-    return `<polyline points="${pts}" fill="none" stroke="${m.color}" stroke-width="2"/>`;
+    const coords = entries.map((e, i) => ({ x: xFor(i), y: yFor(norm(e[m.key], maxOfE(e))) }));
+    const pts = coords.map(c => `${c.x},${c.y}`).join(" ");
+    const line = n > 1 ? `<polyline points="${pts}" fill="none" stroke="${m.color}" stroke-width="2"/>` : "";
+    // Points visibles sur chaque valeur : indispensable quand il n'y a qu'une seule
+    // saisie (une polyline à 1 point ne trace aucun trait visible).
+    const dots = coords.map(c => `<circle cx="${c.x}" cy="${c.y}" r="2.5" fill="${m.color}"/>`).join("");
+    return line + dots;
   }).join("");
   const legend = metrics.map(m =>
     `<span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;font-size:9px;color:#6b7280">
@@ -66,6 +71,52 @@ function buildTrendSvg(title, entries) {
     <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:${h}px">${gridLines}${polylines}</svg>
     <div style="display:flex;justify-content:space-between;font-size:9px;color:#9ca3af;margin-top:2px"><span>${firstDate}</span><span>${lastDate}</span></div>
     <div style="margin-top:4px">${legend}</div>
+  </div>`;
+}
+
+// Génère le "profil wellness" en araignée (radar chart) intégré directement dans le PDF.
+function buildRadarSvg(data) {
+  const w = 320, h = 300, cx = 160, cy = 150, R = 105;
+  const n = data.length;
+  const angleFor = i => -Math.PI / 2 + i * (2 * Math.PI / n);
+  const pointFor = (i, ratio) => {
+    const a = angleFor(i);
+    return { x: cx + Math.cos(a) * R * ratio, y: cy + Math.sin(a) * R * ratio };
+  };
+
+  // Grille (anneaux à 25/50/75/100%) et axes
+  const rings = [0.25, 0.5, 0.75, 1].map(ratio => {
+    const pts = data.map((_, i) => { const p = pointFor(i, ratio); return `${p.x},${p.y}`; }).join(" ");
+    return `<polygon points="${pts}" fill="none" stroke="#f3d4e4" stroke-width="1"/>`;
+  }).join("");
+  const axes = data.map((_, i) => {
+    const p = pointFor(i, 1);
+    return `<line x1="${cx}" y1="${cy}" x2="${p.x}" y2="${p.y}" stroke="#f3d4e4" stroke-width="1"/>`;
+  }).join("");
+
+  // Polygone de valeurs (sur 0-10)
+  const valuePts = data.map((d, i) => {
+    const ratio = Math.max(0, Math.min(1, d.v / 10));
+    const p = pointFor(i, ratio);
+    return `${p.x},${p.y}`;
+  }).join(" ");
+
+  // Labels au-delà du cercle extérieur
+  const labels = data.map((d, i) => {
+    const p = pointFor(i, 1.22);
+    const anchor = Math.abs(Math.cos(angleFor(i))) < 0.3 ? "middle" : (Math.cos(angleFor(i)) > 0 ? "start" : "end");
+    return `<text x="${p.x}" y="${p.y}" font-size="10" fill="#831843" font-weight="700" text-anchor="${anchor}" dominant-baseline="middle">${d.m}</text>`;
+  }).join("");
+
+  return `<div class="section" style="page-break-inside:avoid">
+    <div class="section-title">🕸️ Profil wellness</div>
+    <div style="display:flex;justify-content:center">
+      <svg viewBox="0 0 ${w} ${h}" style="width:280px;height:260px">
+        ${rings}${axes}
+        <polygon points="${valuePts}" fill="#ec4899" fill-opacity="0.18" stroke="#ec4899" stroke-width="2"/>
+        ${labels}
+      </svg>
+    </div>
   </div>`;
 }
 
@@ -120,6 +171,8 @@ body{font-family:Arial,sans-serif;color:#1a1a2e;font-size:13px}
   <div class="kpi"><div class="kv" style="color:#7c3aed">${stats.avgDouleurs}/10</div><div class="kl">Douleurs moy.</div></div>
   <div class="kpi"><div class="kv" style="color:#ec4899">${stats.avgHumeur||"—"}/10</div><div class="kl">Humeur moy.</div></div>
 </div>
+
+${buildRadarSvg(stats.radarData)}
 
 ${stats.enPeriodeCount > 0 ? `
 <div class="section">
@@ -308,7 +361,7 @@ export default function PlayerReport({ player, allEntries, allTempsJeu = [], onB
 
   const stats = { entries, score, avgFatigue, avgSommeil, avgStress, avgDouleurs, avgHumeur,
     enPeriodeCount, avgDouleursMenst, blessures, blessuresCount, alerts, recommendations, level,
-    matchsJoues, totalMinutes, moyenneMinutes, entrainementEntries, matchEntries };
+    matchsJoues, totalMinutes, moyenneMinutes, entrainementEntries, matchEntries, radarData };
 
   const periodLabel = { month:"Dernier mois", quarter:"3 derniers mois", season:"Toute la saison" };
   const PINK = "#ec4899";
