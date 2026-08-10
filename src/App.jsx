@@ -151,9 +151,6 @@ export default function App() {
     };
   }), [allEntries]);
 
-  // Si pas connecté → page login (placé APRÈS tous les hooks)
-  if (!user) return <Login onLogin={setUser} />;
-
   const loadData = async () => {
     setLoading(true);
     try {
@@ -168,6 +165,16 @@ export default function App() {
     } catch(e) { console.error(e); }
     finally { setLoading(false); }
   };
+
+  // Charge automatiquement les vraies données dès la connexion (ou la reconnexion
+  // automatique via "se souvenir de moi"), sans attendre un clic manuel sur Actualiser.
+  useEffect(() => {
+    if (user) loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // Si pas connecté → page login (placé APRÈS tous les hooks)
+  if (!user) return <Login onLogin={setUser} />;
 
   // Enregistre le temps de jeu + commentaires d'un match (staff) dans le Sheet,
   // puis recharge les données pour refléter le changement.
