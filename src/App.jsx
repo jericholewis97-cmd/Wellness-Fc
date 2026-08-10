@@ -31,7 +31,7 @@ const DEMO_M = [
   { date:"2026-08-05", joueur:"Moretti Laura", sommeil:4, fatigue:5, stress:4, humeur:2, douleurs:5, localisation:"Ischios", heuresSommeil:"5-6h", parlerStaff:"Oui", type:"match" },
 ];
 
-const norm10 = (v, max) => v ? Math.round((v / max) * 10) : 0;
+const norm10 = (v, max) => v ? Math.max(0, Math.min(10, Math.round((v / max) * 10))) : 0;
 
 function computeRisk(entries) {
   if (!entries.length) return null;
