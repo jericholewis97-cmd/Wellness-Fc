@@ -182,7 +182,7 @@ export default function PlayerReport({ player, allEntries, allTempsJeu = [], onB
   // Trend
   const trend = entries.slice(-8).map(e => {
     const mx = maxOf(e);
-    return { date:e.date.slice(5), Fatigue:norm(e.fatigue,mx), Sommeil:norm(e.sommeil,mx), Stress:norm(e.stress,mx) };
+    return { date:e.date.slice(5), Fatigue:norm(e.fatigue,mx), Sommeil:norm(e.sommeil,mx), Stress:norm(e.stress,mx), Douleurs:norm(e.douleurs,mx) };
   });
 
   // Radar
@@ -344,16 +344,54 @@ export default function PlayerReport({ player, allEntries, allTempsJeu = [], onB
             <Line dataKey="Fatigue" stroke="#ef4444" dot={false} strokeWidth={2} />
             <Line dataKey="Sommeil" stroke="#38bdf8" dot={false} strokeWidth={2} />
             <Line dataKey="Stress"  stroke="#f59e0b" dot={false} strokeWidth={1.5} strokeDasharray="4 2" />
+            <Line dataKey="Douleurs" stroke="#a78bfa" dot={false} strokeWidth={1.5} strokeDasharray="4 2" />
           </LineChart>
         </ResponsiveContainer>
         <div style={{ display:"flex", gap:12, marginTop:6, flexWrap:"wrap" }}>
-          {[["Fatigue","#ef4444"],["Sommeil","#38bdf8"],["Stress","#f59e0b"]].map(([l,c]) => (
+          {[["Fatigue","#ef4444"],["Sommeil","#38bdf8"],["Stress","#f59e0b"],["Douleurs","#a78bfa"]].map(([l,c]) => (
             <div key={l} style={{ display:"flex", alignItems:"center", gap:4 }}>
               <div style={{ width:12, height:2, background:c }} />
               <span style={{ color:"#2d4a63", fontSize:10 }}>{l}</span>
             </div>
           ))}
         </div>
+      </>)}
+
+      {/* Historique détaillé des réponses, par thème */}
+      {card(<>
+        {cardTitle("📋 Historique des réponses")}
+        {entries.length === 0 ? (
+          <div style={{ color:"#2d5070", fontSize:12 }}>Aucune réponse sur cette période.</div>
+        ) : (
+          <div style={{ overflowX:"auto" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+              <thead>
+                <tr>
+                  {["Date","Type","Sommeil","Fatigue","Stress","Douleurs","Zone","Humeur"].map(h => (
+                    <th key={h} style={{ padding:"6px 10px", color:"#1e3a52", fontSize:9, fontWeight:700, textAlign:"left", whiteSpace:"nowrap", letterSpacing:1, textTransform:"uppercase", borderBottom:`1px solid ${"#1a2f45"}` }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {entries.slice().reverse().map((e, i) => {
+                  const mx = maxOf(e);
+                  return (
+                    <tr key={i} style={{ borderBottom:"1px solid #0a1520" }}>
+                      <td style={{ padding:"7px 10px", color:"#94b8d0", whiteSpace:"nowrap" }}>{e.date.split("-").reverse().join("/")}</td>
+                      <td style={{ padding:"7px 10px", color:"#4a6480" }}>{e.type === "match" ? "🏆 Match" : "🏃 Entraîn."}</td>
+                      <td style={{ padding:"7px 10px", color:"#38bdf8", fontWeight:700 }}>{e.sommeil}/{mx}</td>
+                      <td style={{ padding:"7px 10px", color:"#ef4444", fontWeight:700 }}>{e.fatigue}/{mx}</td>
+                      <td style={{ padding:"7px 10px", color:"#f59e0b", fontWeight:700 }}>{e.stress}/{mx}</td>
+                      <td style={{ padding:"7px 10px", color: e.douleurs >= (e.type==="match"?3:6) ? "#ef4444" : "#a78bfa", fontWeight:700 }}>{e.douleurs}/{mx}</td>
+                      <td style={{ padding:"7px 10px", color:"#4a6480" }}>{e.localisation && e.localisation !== "Aucune" ? e.localisation : "—"}</td>
+                      <td style={{ padding:"7px 10px", color:PINK }}>{e.humeur ? `${e.humeur}/5` : "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </>)}
 
       {/* Participation matchs */}
