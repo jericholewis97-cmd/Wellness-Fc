@@ -164,7 +164,10 @@ export default function App() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const res = await fetch(APPS_SCRIPT_URL);
+      // On ajoute un paramètre unique (timestamp) et cache:"no-store" pour empêcher
+      // le navigateur ou un cache intermédiaire de servir une ancienne réponse figée
+      // au lieu des données réellement à jour du Google Sheet.
+      const res = await fetch(`${APPS_SCRIPT_URL}?t=${Date.now()}`, { cache: "no-store" });
       const data = await res.json();
       // On applique toujours ce que renvoie le Sheet, même si c'est vide
       // (sinon les lignes supprimées dans le Sheet restent affichées dans l'app)
@@ -416,3 +419,7 @@ export default function App() {
                         );
                       })}
                     </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
