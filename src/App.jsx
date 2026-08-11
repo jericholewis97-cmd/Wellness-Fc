@@ -131,6 +131,7 @@ export default function App() {
   const [selected, setSelected] = useState(null);
   const [tab, setTab] = useState("dashboard");
   const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all"); // "all" | "entrainement" | "match"
 
   // IMPORTANT : tous les hooks (useMemo, useEffect, useState) doivent être
   // appelés AVANT tout "return" conditionnel, sinon React perd le fil
@@ -140,8 +141,16 @@ export default function App() {
     [entrainement, matchData]
   );
 
+  // Entrées filtrées selon l'onglet Tout/Entraînement/Match sélectionné : sert de
+  // base à toutes les moyennes et scores du tableau de bord, pour ne jamais
+  // mélanger les barèmes entraînement (/10) et match (/5) dans un même calcul.
+  const scopedEntries = useMemo(
+    () => typeFilter === "all" ? allEntries : allEntries.filter(e => e.type === typeFilter),
+    [allEntries, typeFilter]
+  );
+
   const playerStats = useMemo(() => PLAYERS.map(p => {
-    const entries = allEntries.filter(e => e.joueur === p.name).sort((a,b) => a.date.localeCompare(b.date));
+    const entries = scopedEntries.filter(e => e.joueur === p.name).sort((a,b) => a.date.localeCompare(b.date));
     const score = computeRisk(entries);
     const level = riskLevel(score);
     const lastE = entries[entries.length-1];
@@ -150,7 +159,7 @@ export default function App() {
     return { ...p, entries, score, level, lastE, blessures, enPeriode,
       parlerStaff: entries.filter(e => e.parlerStaff === "Oui").length,
     };
-  }), [allEntries]);
+  }), [scopedEntries]);
 
   const loadData = async () => {
     setLoading(true);
@@ -221,10 +230,10 @@ export default function App() {
   const alerts = playerStats.filter(p => p.level === "high");
   const staffCalls = playerStats.filter(p => p.parlerStaff > 0);
   const enPeriodeCount = playerStats.filter(p => p.enPeriode).length;
-  const avgFatigue = allEntries.length ? (allEntries.reduce((s,e) => {
+  const avgFatigue = scopedEntries.length ? (scopedEntries.reduce((s,e) => {
     const mx = e.type==="match" ? 5 : 10;
     return s + norm10(e.fatigue, mx);
-  }, 0) / allEntries.length).toFixed(1) : "—";
+  }, 0) / scopedEntries.length).toFixed(1) : "—";
 
   const filtered = playerStats.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
 
@@ -281,6 +290,17 @@ export default function App() {
       <div style={{ maxWidth:1100, margin:"0 auto", padding: isMobile ? "14px 12px" : "24px", paddingBottom: isMobile ? 80 : 24 }}>
         {selected && (
           <PlayerReport player={selected} allEntries={allEntries} allTempsJeu={tempsJeu} onBack={() => setSelected(null)} isMobile={isMobile} />
+        )}
+
+        {!selected && (tab === "dashboard" || tab === "players") && (
+          <div style={{ display:"flex", gap:6, marginBottom: isMobile ? 12 : 16, flexWrap:"wrap" }}>
+            {[["all","Tout"],["entrainement","🏃 Entraînement"],["match","🏆 Match"]].map(([k,v]) => (
+              <button key={k} onClick={() => setTypeFilter(k)}
+                style={{ background: typeFilter===k ? "#0d1b2a" : "transparent", border:`1px solid ${typeFilter===k?PINK:BORDER}`, borderRadius:8, color: typeFilter===k?PINK:"#4a6480", padding:"7px 14px", cursor:"pointer", fontWeight:700, fontSize:12 }}>
+                {v}
+              </button>
+            ))}
+          </div>
         )}
 
         {!selected && tab === "dashboard" && (
@@ -396,48 +416,3 @@ export default function App() {
                         );
                       })}
                     </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {!selected && tab === "players" && (
-          <div>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher une joueuse..."
-              style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:10, color:"#c8dff0", padding:"10px 14px", fontSize:13, outline:"none", width:"100%", marginBottom:12, boxSizing:"border-box" }} />
-            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-              {filtered.map(p => <PlayerCardMobile key={p.id} p={p} onClick={setSelected} />)}
-            </div>
-          </div>
-        )}
-
-        {!selected && tab === "matches" && (
-          <Matches
-            players={PLAYERS}
-            matchWellness={matchData}
-            tempsJeu={tempsJeu}
-            onSave={handleSaveMatch}
-            saving={savingMatch}
-            isMobile={isMobile}
-          />
-        )}
-      </div>
-
-      {isMobile && !selected && (
-        <div style={{ position:"fixed", bottom:0, left:0, right:0, background:"#080f1a", borderTop:`1px solid ${BORDER}`, display:"flex", zIndex:100 }}>
-          {TABS.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              style={{ flex:1, background:"none", border:"none", padding:"10px 0 12px", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:3, fontFamily:"inherit",
-                color: tab===t.id ? PINK : "#2d4a63",
-                borderTop: tab===t.id ? `2px solid ${PINK}` : "2px solid transparent" }}>
-              <span style={{ fontSize:22 }}>{t.icon}</span>
-              <span style={{ fontSize:11, fontWeight:700 }}>{t.label}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
