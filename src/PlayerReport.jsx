@@ -521,35 +521,68 @@ export default function PlayerReport({ player, allEntries, allTempsJeu = [], onB
         </div>
       </>)}
 
-      {/* Historique détaillé des réponses, par thème */}
-      {card(<>
-        {cardTitle("📋 Historique des réponses")}
-        {entries.length === 0 ? (
-          <div style={{ color:"#2d5070", fontSize:12 }}>Aucune réponse sur cette période.</div>
+      {/* Historique détaillé des réponses, séparé Entraînement / Match */}
+      {(typeFilter === "all" || typeFilter === "entrainement") && card(<>
+        {cardTitle("🏃 Historique Entraînement")}
+        {entrainementEntries.length === 0 ? (
+          <div style={{ color:"#2d5070", fontSize:12 }}>Aucune réponse entraînement sur cette période.</div>
         ) : (
           <div style={{ overflowX:"auto" }}>
             <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
               <thead>
                 <tr>
-                  {["Date","Type","Sommeil","Fatigue","Stress","Douleurs","Zone","Humeur"].map(h => (
-                    <th key={h} style={{ padding:"6px 10px", color:"#1e3a52", fontSize:9, fontWeight:700, textAlign:"left", whiteSpace:"nowrap", letterSpacing:1, textTransform:"uppercase", borderBottom:`1px solid ${"#1a2f45"}` }}>{h}</th>
+                  {["Date","RPE","Sommeil","Fatigue","Stress","Douleurs","Zone"].map(h => (
+                    <th key={h} style={{ padding:"6px 10px", color:"#1e3a52", fontSize:9, fontWeight:700, textAlign:"left", whiteSpace:"nowrap", letterSpacing:1, textTransform:"uppercase", borderBottom:"1px solid #1a2f45" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {entries.slice().reverse().map((e, i) => {
-                  const mx = maxOf(e);
-                  const hors = (v) => v > mx;
+                {entrainementEntries.slice().reverse().map((e, i) => {
+                  const hors = (v) => v > 10;
                   return (
                     <tr key={i} style={{ borderBottom:"1px solid #0a1520" }}>
                       <td style={{ padding:"7px 10px", color:"#94b8d0", whiteSpace:"nowrap" }}>{e.date.split("-").reverse().join("/")}</td>
-                      <td style={{ padding:"7px 10px", color:"#4a6480" }}>{e.type === "match" ? "🏆 Match" : "🏃 Entraîn."}</td>
-                      <td style={{ padding:"7px 10px", color:"#38bdf8", fontWeight:700 }}>{e.sommeil}/{mx}{hors(e.sommeil) && " ⚠"}</td>
-                      <td style={{ padding:"7px 10px", color:"#ef4444", fontWeight:700 }}>{e.fatigue}/{mx}{hors(e.fatigue) && " ⚠"}</td>
-                      <td style={{ padding:"7px 10px", color:"#f59e0b", fontWeight:700 }}>{e.stress}/{mx}{hors(e.stress) && " ⚠"}</td>
-                      <td style={{ padding:"7px 10px", color: e.douleurs >= (e.type==="match"?3:6) ? "#ef4444" : "#a78bfa", fontWeight:700 }}>{e.douleurs}/{mx}{hors(e.douleurs) && " ⚠"}</td>
+                      <td style={{ padding:"7px 10px", color:"#4a6480" }}>{e.rpe || "—"}/10</td>
+                      <td style={{ padding:"7px 10px", color:"#38bdf8", fontWeight:700 }}>{e.sommeil}/10{hors(e.sommeil) && " ⚠"}</td>
+                      <td style={{ padding:"7px 10px", color:"#ef4444", fontWeight:700 }}>{e.fatigue}/10{hors(e.fatigue) && " ⚠"}</td>
+                      <td style={{ padding:"7px 10px", color:"#f59e0b", fontWeight:700 }}>{e.stress}/10{hors(e.stress) && " ⚠"}</td>
+                      <td style={{ padding:"7px 10px", color: e.douleurs >= 6 ? "#ef4444" : "#a78bfa", fontWeight:700 }}>{e.douleurs}/10{hors(e.douleurs) && " ⚠"}</td>
                       <td style={{ padding:"7px 10px", color:"#4a6480" }}>{e.localisation && e.localisation !== "Aucune" ? e.localisation : "—"}</td>
-                      <td style={{ padding:"7px 10px", color:PINK }}>{e.humeur ? `${e.humeur}/5${e.humeur > 5 ? " ⚠" : ""}` : "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </>)}
+
+      {(typeFilter === "all" || typeFilter === "match") && card(<>
+        {cardTitle("🏆 Historique Match")}
+        {matchEntries.length === 0 ? (
+          <div style={{ color:"#2d5070", fontSize:12 }}>Aucune réponse match sur cette période.</div>
+        ) : (
+          <div style={{ overflowX:"auto" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+              <thead>
+                <tr>
+                  {["Date","Sommeil","Fatigue","Stress","Douleurs","Zone","Humeur"].map(h => (
+                    <th key={h} style={{ padding:"6px 10px", color:"#1e3a52", fontSize:9, fontWeight:700, textAlign:"left", whiteSpace:"nowrap", letterSpacing:1, textTransform:"uppercase", borderBottom:"1px solid #1a2f45" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {matchEntries.slice().reverse().map((e, i) => {
+                  const hors = (v) => v > 5;
+                  return (
+                    <tr key={i} style={{ borderBottom:"1px solid #0a1520" }}>
+                      <td style={{ padding:"7px 10px", color:"#94b8d0", whiteSpace:"nowrap" }}>{e.date.split("-").reverse().join("/")}</td>
+                      <td style={{ padding:"7px 10px", color:"#38bdf8", fontWeight:700 }}>{e.sommeil}/5{hors(e.sommeil) && " ⚠"}</td>
+                      <td style={{ padding:"7px 10px", color:"#ef4444", fontWeight:700 }}>{e.fatigue}/5{hors(e.fatigue) && " ⚠"}</td>
+                      <td style={{ padding:"7px 10px", color:"#f59e0b", fontWeight:700 }}>{e.stress}/5{hors(e.stress) && " ⚠"}</td>
+                      <td style={{ padding:"7px 10px", color: e.douleurs >= 3 ? "#ef4444" : "#a78bfa", fontWeight:700 }}>{e.douleurs}/5{hors(e.douleurs) && " ⚠"}</td>
+                      <td style={{ padding:"7px 10px", color:"#4a6480" }}>{e.localisation && e.localisation !== "Aucune" ? e.localisation : "—"}</td>
+                      <td style={{ padding:"7px 10px", color:PINK }}>{e.humeur ? `${e.humeur}/5${hors(e.humeur) ? " ⚠" : ""}` : "—"}</td>
                     </tr>
                   );
                 })}
