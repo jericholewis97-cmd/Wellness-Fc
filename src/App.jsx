@@ -80,9 +80,11 @@ const KPI = ({ label, value, color="#38bdf8", icon, mobile }) => (
   </div>
 );
 
-function PlayerCardMobile({ p, onClick }) {
+function PlayerCardMobile({ p, onClick, typeFilter }) {
   const isM = p.lastE?.type === "match";
   const mx = isM ? 5 : 10;
+  const showBoth = typeFilter === "all";
+  const hasAny = showBoth ? (p.lastEntrainement || p.lastMatch) : p.lastE;
   return (
     <div onClick={() => onClick(p)}
       style={{ background:"#0d1b2a", border:`1px solid ${p.level==="high"?"#7f1d1d":p.level==="medium"?"#451a03":"#1a2f45"}`, borderRadius:12, padding:"14px", cursor:"pointer", display:"flex", alignItems:"center", gap:12 }}>
@@ -93,11 +95,34 @@ function PlayerCardMobile({ p, onClick }) {
         <div style={{ color:"#e2f4ff", fontWeight:700, fontSize:13, marginBottom:5, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
           {p.name} {p.parlerStaff > 0 ? "💬" : ""} {p.enPeriode ? "🌸" : ""}
         </div>
-        {p.lastE ? (
-          <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
-            <Bar2 value={norm10(p.lastE.fatigue,mx)} max={10} color="#ef4444" />
-            <Bar2 value={norm10(p.lastE.sommeil,mx)} max={10} color="#38bdf8" />
-          </div>
+        {hasAny ? (
+          showBoth ? (
+            <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+              {p.lastEntrainement && (
+                <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                  <span style={{ fontSize:9, opacity:0.6, width:12 }}>🏃</span>
+                  <div style={{ display:"flex", flexDirection:"column", gap:3, flex:1 }}>
+                    <Bar2 value={norm10(p.lastEntrainement.fatigue,10)} max={10} color="#ef4444" />
+                    <Bar2 value={norm10(p.lastEntrainement.sommeil,10)} max={10} color="#38bdf8" />
+                  </div>
+                </div>
+              )}
+              {p.lastMatch && (
+                <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                  <span style={{ fontSize:9, opacity:0.6, width:12 }}>🏆</span>
+                  <div style={{ display:"flex", flexDirection:"column", gap:3, flex:1 }}>
+                    <Bar2 value={norm10(p.lastMatch.fatigue,5)} max={10} color="#ef4444" />
+                    <Bar2 value={norm10(p.lastMatch.sommeil,5)} max={10} color="#38bdf8" />
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+              <Bar2 value={norm10(p.lastE.fatigue,mx)} max={10} color="#ef4444" />
+              <Bar2 value={norm10(p.lastE.sommeil,mx)} max={10} color="#38bdf8" />
+            </div>
+          )
         ) : <div style={{ color:"#1e3a52", fontSize:11 }}>Aucune saisie</div>}
       </div>
       <div style={{ textAlign:"right", flexShrink:0 }}>
@@ -154,12 +179,18 @@ export default function App() {
     const score = computeRisk(entries);
     const level = riskLevel(score);
     const lastE = entries[entries.length-1];
+    // Toujours calculés à partir de TOUTES les entrées (indépendamment du filtre Tout/
+    // Entraînement/Match), pour pouvoir afficher les deux barres séparément dans le
+    // listing quand "Tout" est sélectionné, plutôt qu'une seule ligne ambiguë.
+    const allPlayerEntries = allEntries.filter(e => e.joueur === p.name).sort((a,b) => a.date.localeCompare(b.date));
+    const lastEntrainement = [...allPlayerEntries].reverse().find(e => e.type === "entrainement");
+    const lastMatch = [...allPlayerEntries].reverse().find(e => e.type === "match");
     const blessures = entries.filter(e => e.douleurs >= (e.type==="match"?3:6) && e.localisation && !["Aucune"].includes(e.localisation));
     const enPeriode = entries.filter(e => e.enPeriode === "Oui").length > 0 && lastE?.enPeriode === "Oui";
-    return { ...p, entries, score, level, lastE, blessures, enPeriode,
+    return { ...p, entries, score, level, lastE, lastEntrainement, lastMatch, blessures, enPeriode,
       parlerStaff: entries.filter(e => e.parlerStaff === "Oui").length,
     };
-  }), [scopedEntries]);
+  }), [scopedEntries, allEntries]);
 
   const loadData = async () => {
     setLoading(true);
@@ -239,6 +270,33 @@ export default function App() {
   }, 0) / scopedEntries.length).toFixed(1) : "—";
 
   const filtered = playerStats.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
+
+  // Affiche une seule barre (filtre Entraînement/Match actif) ou deux barres
+  // superposées 🏃/🏆 (filtre "Tout") pour ne jamais mélanger les deux barèmes.
+  const renderMetric = (p, key, color) => {
+    if (typeFilter === "all") {
+      if (!p.lastEntrainement && !p.lastMatch) return <span style={{ color:"#1e3a52" }}>—</span>;
+      return (
+        <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
+          {p.lastEntrainement && (
+            <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+              <span style={{ fontSize:9, opacity:0.6 }}>🏃</span>
+              <Bar2 value={norm10(p.lastEntrainement[key],10)} max={10} color={color} />
+            </div>
+          )}
+          {p.lastMatch && (
+            <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+              <span style={{ fontSize:9, opacity:0.6 }}>🏆</span>
+              <Bar2 value={norm10(p.lastMatch[key],5)} max={10} color={color} />
+            </div>
+          )}
+        </div>
+      );
+    }
+    if (!p.lastE) return <span style={{ color:"#1e3a52" }}>—</span>;
+    const mx = p.lastE.type === "match" ? 5 : 10;
+    return <Bar2 value={norm10(p.lastE[key], mx)} max={10} color={color} />;
+  };
 
   const CARD = "#0d1b2a";
   const BORDER = "#1a2f45";
@@ -372,7 +430,7 @@ export default function App() {
                 <div style={{ display:"flex", flexDirection:"column" }}>
                   {filtered.map((p,i) => (
                     <div key={p.id} style={{ borderTop: i>0 ? "1px solid #0a1520" : "none" }}>
-                      <PlayerCardMobile p={p} onClick={setSelected} />
+                      <PlayerCardMobile p={p} onClick={setSelected} typeFilter={typeFilter} />
                     </div>
                   ))}
                 </div>
@@ -389,6 +447,7 @@ export default function App() {
                     <tbody>
                       {filtered.map(p => {
                         const mx = p.lastE?.type==="match" ? 5 : 10;
+                        const hasAny = typeFilter === "all" ? (p.lastEntrainement || p.lastMatch) : p.lastE;
                         return (
                           <tr key={p.id} onClick={() => setSelected(p)} style={{ borderTop:`1px solid ${BORDER}`, cursor:"pointer" }}
                             onMouseEnter={e => e.currentTarget.style.background="#0a1520"}
@@ -398,14 +457,14 @@ export default function App() {
                               <span style={{ color:"#c8dff0", fontWeight:600, fontSize:13 }}>{p.name}</span>
                               {p.parlerStaff > 0 && <span style={{ marginLeft:5 }}>💬</span>}
                             </td>
-                            {p.lastE ? (
+                            {hasAny ? (
                               <>
-                                <td style={{ padding:"11px 14px", minWidth:80 }}><Bar2 value={norm10(p.lastE.fatigue,mx)} max={10} color="#ef4444" /></td>
-                                <td style={{ padding:"11px 14px", minWidth:80 }}><Bar2 value={norm10(p.lastE.sommeil,mx)} max={10} color="#38bdf8" /></td>
-                                <td style={{ padding:"11px 14px", minWidth:80 }}><Bar2 value={norm10(p.lastE.stress,mx)} max={10} color="#f59e0b" /></td>
-                                <td style={{ padding:"11px 14px", minWidth:80 }}><Bar2 value={norm10(p.lastE.douleurs,mx)} max={10} color="#a78bfa" /></td>
+                                <td style={{ padding:"11px 14px", minWidth:80 }}>{renderMetric(p, "fatigue", "#ef4444")}</td>
+                                <td style={{ padding:"11px 14px", minWidth:80 }}>{renderMetric(p, "sommeil", "#38bdf8")}</td>
+                                <td style={{ padding:"11px 14px", minWidth:80 }}>{renderMetric(p, "stress", "#f59e0b")}</td>
+                                <td style={{ padding:"11px 14px", minWidth:80 }}>{renderMetric(p, "douleurs", "#a78bfa")}</td>
                                 <td style={{ padding:"11px 14px" }}>
-                                  {p.lastE.localisation && p.lastE.localisation !== "Aucune"
+                                  {p.lastE?.localisation && p.lastE.localisation !== "Aucune"
                                     ? <Pill label={p.lastE.localisation} color={ZC[p.lastE.localisation]||"#64748b"} />
                                     : <span style={{ color:"#1e3a52" }}>—</span>}
                                 </td>
@@ -431,7 +490,7 @@ export default function App() {
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher une joueuse..."
               style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:10, color:"#c8dff0", padding:"10px 14px", fontSize:13, outline:"none", width:"100%", marginBottom:12, boxSizing:"border-box" }} />
             <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-              {filtered.map(p => <PlayerCardMobile key={p.id} p={p} onClick={setSelected} />)}
+              {filtered.map(p => <PlayerCardMobile key={p.id} p={p} onClick={setSelected} typeFilter={typeFilter} />)}
             </div>
           </div>
         )}
