@@ -423,3 +423,44 @@ export default function App() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {!selected && tab === "players" && (
+          <div>
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher une joueuse..."
+              style={{ background:CARD, border:`1px solid ${BORDER}`, borderRadius:10, color:"#c8dff0", padding:"10px 14px", fontSize:13, outline:"none", width:"100%", marginBottom:12, boxSizing:"border-box" }} />
+            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              {filtered.map(p => <PlayerCardMobile key={p.id} p={p} onClick={setSelected} />)}
+            </div>
+          </div>
+        )}
+
+        {!selected && tab === "matches" && (
+          <Matches
+            players={PLAYERS}
+            matchWellness={matchData}
+            tempsJeu={tempsJeu}
+            onSave={handleSaveMatch}
+            saving={savingMatch}
+            isMobile={isMobile}
+          />
+        )}
+      </div>
+
+      {isMobile && !selected && (
+        <div style={{ position:"fixed", bottom:0, left:0, right:0, background:"#080f1a", borderTop:`1px solid ${BORDER}`, display:"flex", zIndex:100 }}>
+          {TABS.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              style={{ flex:1, background:"none", border:"none", padding:"10px 0 12px", cursor:"pointer", display:"flex", flexDirection:"column", alignItems:"center", gap:3, fontFamily:"inherit",
+                color: tab===t.id ? PINK : "#2d4a63",
+                borderTop: tab===t.id ? `2px solid ${PINK}` : "2px solid transparent" }}>
+              <span style={{ fontSize:22 }}>{t.icon}</span>
+              <span style={{ fontSize:11, fontWeight:700 }}>{t.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
