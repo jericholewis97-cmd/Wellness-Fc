@@ -664,8 +664,19 @@ export default function App() {
 
             {nonRepondantes.length > 0 && (
               <div style={{ background:"#0d1420", border:`1px solid #2d4a63`, borderRadius:12, padding:"12px 14px", marginBottom:10 }}>
-                <div style={{ color:"#7fa8c9", fontWeight:700, fontSize:12, marginBottom:6 }}>
-                  🔇 AUCUNE RÉPONSE DEPUIS {NON_REPONSE_JOURS}+ JOURS ({nonRepondantes.length})
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:8, marginBottom:6 }}>
+                  <div style={{ color:"#7fa8c9", fontWeight:700, fontSize:12 }}>
+                    🔇 AUCUNE RÉPONSE DEPUIS {NON_REPONSE_JOURS}+ JOURS ({nonRepondantes.length})
+                  </div>
+                  <button
+                    onClick={() => {
+                      const noms = nonRepondantes.map(p => `• ${p.name}`).join("\n");
+                      const message = `⚠️ Rappel Wellness FC 🌸\n\nMerci de remplir votre questionnaire si ce n'est pas déjà fait, c'est important pour votre suivi !\n\nEn attente de réponse :\n${noms}\n\nMerci 🙏`;
+                      window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank");
+                    }}
+                    style={{ background:"#25D366", border:"none", borderRadius:8, color:"#0a1a0f", padding:"6px 12px", cursor:"pointer", fontWeight:700, fontSize:11, display:"flex", alignItems:"center", gap:5 }}>
+                    📲 Rappel WhatsApp
+                  </button>
                 </div>
                 <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
                   {nonRepondantes.map(p => (
