@@ -39,6 +39,26 @@ function computeRisk(entries) {
   const max = last.type === "match" ? 5 : 10;
   return ((norm10(last.fatigue,max) + norm10(last.stress,max) + norm10(last.douleurs,max) + (10 - norm10(last.sommeil,max))) / 4).toFixed(1);
 }
+// Score de risque d'une seule entrée (même formule que computeRisk, réutilisée
+// pour calculer une tendance personnelle par joueuse, pas juste un score absolu).
+const scoreOfEntry = (e) => {
+  const max = e.type === "match" ? 5 : 10;
+  return (norm10(e.fatigue,max) + norm10(e.stress,max) + norm10(e.douleurs,max) + (10 - norm10(e.sommeil,max))) / 4;
+};
+// Compare la dernière réponse d'une joueuse à SA PROPRE moyenne habituelle
+// (plutôt qu'à un seuil fixe identique pour tout le monde) : "up" = se dégrade
+// par rapport à d'habitude, "down" = s'améliore, "stable" = rien de notable.
+function computeTrend(entries) {
+  if (entries.length < 2) return "stable";
+  const scores = entries.map(scoreOfEntry);
+  const last = scores[scores.length - 1];
+  const prior = scores.slice(0, -1);
+  const priorAvg = prior.reduce((s,v) => s+v, 0) / prior.length;
+  const delta = last - priorAvg;
+  if (delta >= 1) return "up";
+  if (delta <= -1) return "down";
+  return "stable";
+}
 const riskLevel = s => !s ? "none" : s >= 6 ? "high" : s >= 4 ? "medium" : "low";
 const RC = { high:"#ef4444", medium:"#f59e0b", low:"#22c55e", none:"#475569" };
 const ZC = { "Ischios":"#f97316","Mollets":"#06b6d4","Quadriceps":"#8b5cf6","Genoux":"#ec4899","Chevilles":"#84cc16","Dos":"#64748b","Épaules":"#f59e0b" };
@@ -62,6 +82,14 @@ const Pill = ({ label, color }) => (
 const RiskDot = ({ level }) => (
   <span style={{ display:"inline-block", width:8, height:8, borderRadius:"50%", background:RC[level], marginRight:5, flexShrink:0 }} />
 );
+
+// Petite flèche indiquant si une joueuse se dégrade/s'améliore par rapport
+// à SA PROPRE moyenne habituelle (pas un seuil identique pour tout le monde).
+const TrendBadge = ({ trend }) => {
+  if (trend === "up") return <span title="Se dégrade par rapport à sa moyenne habituelle" style={{ color:"#ef4444", fontSize:11, marginLeft:4 }}>▲</span>;
+  if (trend === "down") return <span title="S'améliore par rapport à sa moyenne habituelle" style={{ color:"#22c55e", fontSize:11, marginLeft:4 }}>▼</span>;
+  return null;
+};
 
 const Bar2 = ({ value, max, color }) => (
   <div style={{ display:"flex", alignItems:"center", gap:5 }}>
@@ -335,7 +363,7 @@ function PlayerCardMobile({ p, onClick, typeFilter }) {
         ) : <div style={{ color:"#1e3a52", fontSize:11 }}>Aucune saisie</div>}
       </div>
       <div style={{ textAlign:"right", flexShrink:0 }}>
-        <div style={{ color:RC[p.level], fontWeight:800, fontSize:18 }}>{p.score||"—"}</div>
+        <div style={{ color:RC[p.level], fontWeight:800, fontSize:18 }}>{p.score||"—"}<TrendBadge trend={p.trend} /></div>
       </div>
     </div>
   );
@@ -388,6 +416,7 @@ export default function App() {
     const entries = scopedEntries.filter(e => e.joueur === p.name).sort((a,b) => a.date.localeCompare(b.date));
     const score = computeRisk(entries);
     const level = riskLevel(score);
+    const trend = computeTrend(entries);
     const lastE = entries[entries.length-1];
     // Toujours calculés à partir de TOUTES les entrées (indépendamment du filtre Tout/
     // Entraînement/Match), pour pouvoir afficher les deux barres séparément dans le
@@ -397,7 +426,7 @@ export default function App() {
     const lastMatch = [...allPlayerEntries].reverse().find(e => e.type === "match");
     const blessures = entries.filter(e => e.douleurs >= (e.type==="match"?3:6) && e.localisation && !["Aucune"].includes(e.localisation));
     const enPeriode = entries.filter(e => e.enPeriode === "Oui").length > 0 && lastE?.enPeriode === "Oui";
-    return { ...p, entries, score, level, lastE, lastEntrainement, lastMatch, blessures, enPeriode,
+    return { ...p, entries, score, level, trend, lastE, lastEntrainement, lastMatch, blessures, enPeriode,
       parlerStaff: entries.filter(e => e.parlerStaff === "Oui").length,
     };
   }), [scopedEntries, allEntries]);
@@ -474,6 +503,15 @@ export default function App() {
   const alerts = playerStats.filter(p => p.level === "high");
   const staffCalls = playerStats.filter(p => p.parlerStaff > 0);
   const enPeriodeCount = playerStats.filter(p => p.enPeriode).length;
+
+  // Joueuses n'ayant rien répondu depuis 7 jours : le taux de réponse conditionne
+  // la fiabilité de tous les autres indicateurs, donc on le met en évidence.
+  const NON_REPONSE_JOURS = 7;
+  const nonRepondantesCutoff = new Date();
+  nonRepondantesCutoff.setDate(nonRepondantesCutoff.getDate() - NON_REPONSE_JOURS);
+  const nonRepondantesCutoffISO = nonRepondantesCutoff.toISOString().slice(0, 10);
+  const nonRepondantes = playerStats.filter(p => !p.entries.some(e => e.date >= nonRepondantesCutoffISO));
+
   const avgFatigue = scopedEntries.length ? (scopedEntries.reduce((s,e) => {
     const mx = e.type==="match" ? 5 : 10;
     return s + norm10(e.fatigue, mx);
@@ -624,6 +662,22 @@ export default function App() {
               <KPI label="En période 🌸" value={enPeriodeCount} color={PINK} icon="🌸" mobile={isMobile} />
             </div>
 
+            {nonRepondantes.length > 0 && (
+              <div style={{ background:"#0d1420", border:`1px solid #2d4a63`, borderRadius:12, padding:"12px 14px", marginBottom:10 }}>
+                <div style={{ color:"#7fa8c9", fontWeight:700, fontSize:12, marginBottom:6 }}>
+                  🔇 AUCUNE RÉPONSE DEPUIS {NON_REPONSE_JOURS}+ JOURS ({nonRepondantes.length})
+                </div>
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                  {nonRepondantes.map(p => (
+                    <div key={p.id} onClick={() => setSelected(p)}
+                      style={{ background:"#0a1520", border:"1px solid #2d4a63", borderRadius:8, padding:"5px 12px", cursor:"pointer", color:"#7fa8c9", fontWeight:600, fontSize:12 }}>
+                      {isMobile ? p.name.split(" ")[0] : p.name}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {enPeriodeCount > 0 && (
               <div style={{ background:"#1a0010", border:`1px solid #9d174d`, borderRadius:12, padding:"12px 14px", marginBottom:10 }}>
                 <div style={{ color:PINK, fontWeight:700, fontSize:12, marginBottom:6 }}>🌸 JOUEUSES EN PÉRIODE</div>
@@ -722,7 +776,7 @@ export default function App() {
                                 <td style={{ padding:"11px 14px", textAlign:"center" }}>
                                   {p.enPeriode ? <span>🌸</span> : <span style={{ color:"#1e3a52" }}>—</span>}
                                 </td>
-                                <td style={{ padding:"11px 14px", color:RC[p.level], fontWeight:800 }}>{p.score}</td>
+                                <td style={{ padding:"11px 14px", color:RC[p.level], fontWeight:800 }}>{p.score}<TrendBadge trend={p.trend} /></td>
                               </>
                             ) : <td colSpan={7} style={{ padding:"11px 14px", color:"#1e3a52", fontSize:12 }}>Aucune saisie</td>}
                           </tr>
