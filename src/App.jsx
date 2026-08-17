@@ -80,6 +80,215 @@ const KPI = ({ label, value, color="#38bdf8", icon, mobile }) => (
   </div>
 );
 
+// ---------- Rapport d'équipe (PDF, agrégé sur toutes les joueuses) ----------
+
+// Moyenne du groupe, jour par jour, pour tracer une courbe d'évolution collective.
+function aggregateTeamByDay(entries) {
+  const map = {};
+  entries.forEach(e => {
+    if (!map[e.date]) map[e.date] = { date: e.date, n: 0, fatigue: 0, sommeil: 0, stress: 0, douleurs: 0 };
+    const mx = e.type === "match" ? 5 : 10;
+    map[e.date].fatigue += norm10(e.fatigue, mx);
+    map[e.date].sommeil += norm10(e.sommeil, mx);
+    map[e.date].stress += norm10(e.stress, mx);
+    map[e.date].douleurs += norm10(e.douleurs, mx);
+    map[e.date].n += 1;
+  });
+  return Object.values(map)
+    .map(d => ({
+      date: d.date,
+      fatigue: +(d.fatigue / d.n).toFixed(1),
+      sommeil: +(d.sommeil / d.n).toFixed(1),
+      stress: +(d.stress / d.n).toFixed(1),
+      douleurs: +(d.douleurs / d.n).toFixed(1),
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// Courbe SVG intégrée dans le PDF, tracée sur la moyenne quotidienne du groupe.
+function buildTeamTrendSvg(dailyAgg) {
+  if (!dailyAgg.length) {
+    return `<div class="section"><div class="section-title">Évolution du groupe</div><div style="color:#9ca3af;font-size:12px">Aucune donnée sur cette période</div></div>`;
+  }
+  const w = 700, h = 160, padL = 24, padR = 10, padT = 10, padB = 22;
+  const innerW = w - padL - padR, innerH = h - padT - padB;
+  const n = dailyAgg.length;
+  const xFor = i => padL + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
+  const yFor = v => padT + innerH - (v / 10) * innerH;
+  const metrics = [
+    { key: "fatigue", color: "#ef4444", label: "Fatigue" },
+    { key: "sommeil", color: "#38bdf8", label: "Sommeil" },
+    { key: "stress", color: "#f59e0b", label: "Stress" },
+    { key: "douleurs", color: "#7c3aed", label: "Douleurs" },
+  ];
+  const gridLines = [0, 5, 10].map(v =>
+    `<line x1="${padL}" y1="${yFor(v)}" x2="${w - padR}" y2="${yFor(v)}" stroke="#f3d4e4" stroke-width="1"/>
+     <text x="0" y="${yFor(v) + 3}" font-size="8" fill="#9ca3af">${v}</text>`
+  ).join("");
+  const polylines = metrics.map(m => {
+    const coords = dailyAgg.map((d, i) => ({ x: xFor(i), y: yFor(d[m.key]) }));
+    const pts = coords.map(c => `${c.x},${c.y}`).join(" ");
+    const line = n > 1 ? `<polyline points="${pts}" fill="none" stroke="${m.color}" stroke-width="2"/>` : "";
+    const dots = coords.map(c => `<circle cx="${c.x}" cy="${c.y}" r="2.5" fill="${m.color}"/>`).join("");
+    return line + dots;
+  }).join("");
+  const xLabels = dailyAgg.map((d, i) =>
+    `<text x="${xFor(i)}" y="${h - 4}" font-size="8" fill="#9ca3af" text-anchor="middle">${d.date.slice(5).split("-").reverse().join("/")}</text>`
+  ).join("");
+  const legend = metrics.map(m =>
+    `<span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;font-size:9px;color:#6b7280">
+       <span style="display:inline-block;width:10px;height:2px;background:${m.color}"></span>${m.label}
+     </span>`
+  ).join("");
+  return `<div class="section" style="page-break-inside:avoid">
+    <div class="section-title">Évolution du groupe (moyenne quotidienne, ${n} jour${n > 1 ? "s" : ""})</div>
+    <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:${h}px">${gridLines}${polylines}${xLabels}</svg>
+    <div style="margin-top:4px">${legend}</div>
+  </div>`;
+}
+
+function generateTeamPDF({ label, dateRangeLabel, playerStats, entriesInRange, tempsJeuInRange, typeFilterLabel }) {
+  const now = new Date().toLocaleDateString("fr-FR");
+  const dailyAgg = aggregateTeamByDay(entriesInRange);
+
+  const avg = (key, maxFn) => entriesInRange.length
+    ? +(entriesInRange.reduce((s, e) => s + norm10(e[key], maxFn(e)), 0) / entriesInRange.length).toFixed(1)
+    : "—";
+  const maxOf = e => e.type === "match" ? 5 : 10;
+  const teamFatigue = avg("fatigue", maxOf);
+  const teamSommeil = avg("sommeil", maxOf);
+  const teamStress = avg("stress", maxOf);
+  const teamDouleurs = avg("douleurs", maxOf);
+
+  const joueusesActives = [...new Set(entriesInRange.map(e => e.joueur))];
+  const alertesHigh = playerStats.filter(p => p.level === "high" && p.entries.some(e => entriesInRange.includes(e)));
+
+  const blessures = entriesInRange
+    .filter(e => e.douleurs >= (e.type === "match" ? 3 : 6) && e.localisation && e.localisation !== "Aucune")
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  const participation = {};
+  tempsJeuInRange.forEach(t => {
+    if (!(t.minutes > 0)) return;
+    if (!participation[t.joueur]) participation[t.joueur] = { minutes: 0, matchs: 0, titulaire: 0 };
+    participation[t.joueur].minutes += t.minutes;
+    participation[t.joueur].matchs += 1;
+    if (t.titulaire === "Titulaire") participation[t.joueur].titulaire += 1;
+  });
+  const participationList = Object.entries(participation).sort((a, b) => b[1].minutes - a[1].minutes);
+
+  const html = `<!DOCTYPE html>
+<html lang="fr"><head><meta charset="UTF-8"><title>Rapport d'équipe — ${label}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Arial,sans-serif;color:#1a1a2e;font-size:13px}
+.page{width:210mm;min-height:297mm;padding:16mm 14mm}
+.header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #ec4899;padding-bottom:12px;margin-bottom:16px}
+.name{font-size:22px;font-weight:900;color:#831843}
+.sub{font-size:12px;color:#6b7280;margin-top:4px}
+.badge{background:#fce7f3;color:#9d174d;border:1px solid #f9a8d4;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;display:inline-block;margin:2px}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px}
+.kpi{background:#fdf2f8;border:1px solid #f9a8d4;border-radius:10px;padding:10px;text-align:center}
+.kv{font-size:22px;font-weight:900;color:#9d174d}
+.kl{font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;margin-top:2px}
+.section{margin-bottom:14px}
+.section-title{font-size:11px;font-weight:800;color:#831843;text-transform:uppercase;letter-spacing:1.5px;border-bottom:2px solid #fce7f3;padding-bottom:5px;margin-bottom:8px}
+.metric-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #fce7f3}
+table{width:100%;border-collapse:collapse;font-size:10px}
+th{padding:5px 6px;text-align:left;color:#9d174d;font-size:9px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #f9a8d4}
+td{padding:5px 6px;border-bottom:1px solid #fce7f3}
+.footer{margin-top:16px;padding-top:8px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;color:#9ca3af;font-size:10px}
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style></head><body><div class="page">
+
+<div class="header">
+  <div>
+    <div class="name">⚽ Rapport d'équipe — ${label}</div>
+    <div class="sub">${dateRangeLabel}${typeFilterLabel ? " · " + typeFilterLabel : ""} · Généré le ${now}</div>
+    <div style="margin-top:6px">
+      <span class="badge">${joueusesActives.length}/${playerStats.length} joueuses actives</span>
+      <span class="badge" style="background:${alertesHigh.length > 0 ? "#fee2e2" : "#dcfce7"};color:${alertesHigh.length > 0 ? "#b91c1c" : "#16a34a"};border-color:${alertesHigh.length > 0 ? "#fecaca" : "#bbf7d0"}">
+        ${alertesHigh.length > 0 ? `⚠ ${alertesHigh.length} à risque élevé` : "✓ Aucune alerte"}
+      </span>
+    </div>
+  </div>
+  <div style="text-align:right;font-size:11px;color:#9ca3af"><div>Wellness FC — Féminin</div><div>Saison 2026/27</div></div>
+</div>
+
+<div class="kpis">
+  <div class="kpi"><div class="kv" style="color:#ef4444">${teamFatigue}/10</div><div class="kl">Fatigue moy.</div></div>
+  <div class="kpi"><div class="kv" style="color:#38bdf8">${teamSommeil}/10</div><div class="kl">Sommeil moy.</div></div>
+  <div class="kpi"><div class="kv" style="color:#f59e0b">${teamStress}/10</div><div class="kl">Stress moy.</div></div>
+  <div class="kpi"><div class="kv" style="color:#7c3aed">${teamDouleurs}/10</div><div class="kl">Douleurs moy.</div></div>
+  <div class="kpi"><div class="kv" style="color:#9d174d">${entriesInRange.length}</div><div class="kl">Réponses reçues</div></div>
+</div>
+
+${buildTeamTrendSvg(dailyAgg)}
+
+<div class="section">
+  <div class="section-title">⚠ Joueuses à risque élevé</div>
+  ${alertesHigh.length === 0
+    ? `<div style="color:#16a34a;font-size:12px">✓ Aucune joueuse à risque élevé sur cette période</div>`
+    : alertesHigh.map(p => `<div class="metric-row"><span>${p.name}</span><span style="color:#b91c1c;font-weight:700">${p.score}/10</span></div>`).join("")}
+</div>
+
+<div class="section">
+  <div class="section-title">🏥 Blessures déclarées durant la période (${blessures.length})</div>
+  ${blessures.length === 0
+    ? `<div style="color:#16a34a;font-size:12px">✓ Aucune blessure significative déclarée</div>`
+    : blessures.map(b => `<div class="metric-row"><span>${b.date.split("-").reverse().join("/")} — ${b.joueur} — ${b.localisation}</span><span style="color:#b91c1c;font-weight:700">${b.douleurs}/${b.type==="match"?5:10}</span></div>`).join("")}
+</div>
+
+${participationList.length > 0 ? `
+<div class="section">
+  <div class="section-title">🏆 Participation matchs sur la période</div>
+  <table>
+    <thead><tr><th>Joueuse</th><th>Matchs</th><th>Minutes</th><th>Titulaire</th></tr></thead>
+    <tbody>
+      ${participationList.map(([nom, d]) => `<tr><td>${nom}</td><td>${d.matchs}</td><td>${d.minutes}'</td><td>${d.titulaire}x</td></tr>`).join("")}
+    </tbody>
+  </table>
+</div>` : ""}
+
+<div class="section" style="page-break-inside:avoid">
+  <div class="section-title">📋 Détail par joueuse (dernière réponse de la période)</div>
+  <table>
+    <thead><tr><th>Joueuse</th><th>Type</th><th>Fatigue</th><th>Sommeil</th><th>Stress</th><th>Douleurs</th><th>Zone</th><th>Score</th></tr></thead>
+    <tbody>
+      ${playerStats
+        .map(p => ({ p, last: [...p.entries].reverse().find(e => entriesInRange.includes(e)) }))
+        .filter(x => x.last)
+        .map(({ p, last }) => {
+          const mx = last.type === "match" ? 5 : 10;
+          return `<tr>
+            <td>${p.name}</td>
+            <td>${last.type === "match" ? "🏆" : "🏃"}</td>
+            <td>${norm10(last.fatigue,mx)}/10</td>
+            <td>${norm10(last.sommeil,mx)}/10</td>
+            <td>${norm10(last.stress,mx)}/10</td>
+            <td style="color:${last.douleurs >= (last.type==="match"?3:6) ? "#b91c1c" : "#1a1a2e"}">${norm10(last.douleurs,mx)}/10</td>
+            <td>${last.localisation && last.localisation !== "Aucune" ? last.localisation : "—"}</td>
+            <td style="font-weight:800;color:${RC[p.level]}">${p.score || "—"}</td>
+          </tr>`;
+        }).join("")}
+    </tbody>
+  </table>
+</div>
+
+<div class="footer">
+  <span>Wellness FC — Rapport d'équipe</span>
+  <span>Document confidentiel — Usage interne staff</span>
+  <span>${now}</span>
+</div>
+</div></body></html>`;
+
+  const win = window.open("", "_blank");
+  win.document.write(html);
+  win.document.close();
+  setTimeout(() => win.print(), 500);
+}
+
+
 function PlayerCardMobile({ p, onClick, typeFilter }) {
   const isM = p.lastE?.type === "match";
   const mx = isM ? 5 : 10;
@@ -157,6 +366,7 @@ export default function App() {
   const [tab, setTab] = useState("dashboard");
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all"); // "all" | "entrainement" | "match"
+  const [reportPeriod, setReportPeriod] = useState("week"); // "day" | "week"
 
   // IMPORTANT : tous les hooks (useMemo, useEffect, useState) doivent être
   // appelés AVANT tout "return" conditionnel, sinon React perd le fil
@@ -298,6 +508,31 @@ export default function App() {
     return <Bar2 value={norm10(p.lastE[key], mx)} max={10} color={color} />;
   };
 
+  // Plage de dates du rapport d'équipe (Aujourd'hui / Cette semaine)
+  const handleGenerateTeamReport = () => {
+    const today = new Date();
+    const start = new Date(today);
+    if (reportPeriod === "week") start.setDate(today.getDate() - 6);
+    const startISO = start.toISOString().slice(0, 10);
+    const endISO = today.toISOString().slice(0, 10);
+
+    const entriesInRange = scopedEntries.filter(e => e.date >= startISO && e.date <= endISO);
+    const tempsJeuInRange = tempsJeu.filter(t => t.date >= startISO && t.date <= endISO);
+
+    const fmt = d => d.split("-").reverse().join("/");
+    const dateRangeLabel = reportPeriod === "day" ? `Journée du ${fmt(endISO)}` : `Semaine du ${fmt(startISO)} au ${fmt(endISO)}`;
+    const typeFilterLabel = typeFilter === "entrainement" ? "Entraînements uniquement" : typeFilter === "match" ? "Matchs uniquement" : "";
+
+    generateTeamPDF({
+      label: reportPeriod === "day" ? "Rapport journalier" : "Rapport hebdomadaire",
+      dateRangeLabel,
+      playerStats,
+      entriesInRange,
+      tempsJeuInRange,
+      typeFilterLabel,
+    });
+  };
+
   const CARD = "#0d1b2a";
   const BORDER = "#1a2f45";
   const MP = isMobile ? 12 : 24;
@@ -354,13 +589,29 @@ export default function App() {
         )}
 
         {!selected && (tab === "dashboard" || tab === "players") && (
-          <div style={{ display:"flex", gap:6, marginBottom: isMobile ? 12 : 16, flexWrap:"wrap" }}>
-            {[["all","Tout"],["entrainement","🏃 Entraînement"],["match","🏆 Match"]].map(([k,v]) => (
-              <button key={k} onClick={() => setTypeFilter(k)}
-                style={{ background: typeFilter===k ? "#0d1b2a" : "transparent", border:`1px solid ${typeFilter===k?PINK:BORDER}`, borderRadius:8, color: typeFilter===k?PINK:"#4a6480", padding:"7px 14px", cursor:"pointer", fontWeight:700, fontSize:12 }}>
-                {v}
-              </button>
-            ))}
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: isMobile ? 12 : 16, flexWrap:"wrap", gap:8 }}>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+              {[["all","Tout"],["entrainement","🏃 Entraînement"],["match","🏆 Match"]].map(([k,v]) => (
+                <button key={k} onClick={() => setTypeFilter(k)}
+                  style={{ background: typeFilter===k ? "#0d1b2a" : "transparent", border:`1px solid ${typeFilter===k?PINK:BORDER}`, borderRadius:8, color: typeFilter===k?PINK:"#4a6480", padding:"7px 14px", cursor:"pointer", fontWeight:700, fontSize:12 }}>
+                  {v}
+                </button>
+              ))}
+            </div>
+            {tab === "dashboard" && (
+              <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
+                {[["day","Jour"],["week","Semaine"]].map(([k,v]) => (
+                  <button key={k} onClick={() => setReportPeriod(k)}
+                    style={{ background: reportPeriod===k ? "#0d1b2a" : "transparent", border:`1px solid ${reportPeriod===k?"#38bdf8":BORDER}`, borderRadius:8, color: reportPeriod===k?"#38bdf8":"#4a6480", padding:"7px 12px", cursor:"pointer", fontWeight:700, fontSize:12 }}>
+                    {v}
+                  </button>
+                ))}
+                <button onClick={handleGenerateTeamReport}
+                  style={{ background:`linear-gradient(135deg,${PINK},#8b5cf6)`, border:"none", borderRadius:8, color:"#fff", padding:"7px 14px", cursor:"pointer", fontWeight:700, fontSize:12 }}>
+                  📄 Rapport d'équipe
+                </button>
+              </div>
+            )}
           </div>
         )}
 
