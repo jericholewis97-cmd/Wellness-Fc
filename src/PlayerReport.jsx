@@ -8,6 +8,39 @@ import {
 // Plafonne toujours entre 0 et 10, même si une réponse brute dépasse le barème
 // attendu (ex: une joueuse qui tape "14" au lieu d'une note entre 1 et 10)
 const norm = (v, max) => v ? Math.max(0, Math.min(10, Math.round((v / max) * 10))) : 0;
+
+// Compare la toute dernière entrée à la moyenne des 7 dernières (elle incluse),
+// séparément pour chaque métrique — permet de voir en un coup d'œil si la dernière
+// séance sort de l'ordinaire pour cette joueuse (pas par rapport à un seuil fixe).
+function compareLastToRecent(entriesForType, keys) {
+  if (!entriesForType.length) return null;
+  const maxOfE = e => e.type === "match" ? 5 : 10;
+  const last = entriesForType[entriesForType.length - 1];
+  const recent7 = entriesForType.slice(-7);
+  const rows = keys.map(({ key, label, color, invert }) => {
+    const lastVal = norm(last[key], maxOfE(last));
+    const avg7 = +(recent7.reduce((s, e) => s + norm(e[key], maxOfE(e)), 0) / recent7.length).toFixed(1);
+    const delta = +(lastVal - avg7).toFixed(1);
+    // Pour Sommeil, une hausse est positive (mieux) ; pour les autres, une baisse est positive.
+    const better = invert ? delta > 0.4 : delta < -0.4;
+    const worse = invert ? delta < -0.4 : delta > 0.4;
+    return { key, label, color, lastVal, avg7, delta, better, worse };
+  });
+  return { last, n: recent7.length, rows };
+}
+const COMPARE_KEYS_ENTRAINEMENT = [
+  { key: "fatigue",  label: "Fatigue",  color: "#ef4444" },
+  { key: "sommeil",  label: "Sommeil",  color: "#38bdf8", invert: true },
+  { key: "stress",   label: "Stress",   color: "#f59e0b" },
+  { key: "douleurs", label: "Douleurs", color: "#a78bfa" },
+];
+const COMPARE_KEYS_MATCH = [
+  { key: "fatigue",  label: "Fatigue",  color: "#ef4444" },
+  { key: "sommeil",  label: "Sommeil",  color: "#38bdf8", invert: true },
+  { key: "stress",   label: "Stress",   color: "#f59e0b" },
+  { key: "douleurs", label: "Douleurs", color: "#a78bfa" },
+  { key: "humeur",   label: "Humeur",   color: "#ec4899", invert: true },
+];
 const RC = { high:"#ef4444", medium:"#f59e0b", low:"#22c55e", none:"#475569" };
 const ZC = { "Ischios":"#f97316","Mollets":"#06b6d4","Quadriceps":"#8b5cf6","Genoux":"#ec4899","Chevilles":"#84cc16","Dos":"#64748b","Épaules":"#f59e0b" };
 
@@ -546,6 +579,79 @@ export default function PlayerReport({ player, allEntries, allTempsJeu = [], onB
           ))}
         </div>
       </>)}
+
+      {/* Comparaison : dernière séance vs moyenne des 7 dernières, séparé Entraînement / Match */}
+      {(typeFilter === "all" || typeFilter === "entrainement") && (() => {
+        const comp = compareLastToRecent(entrainementEntries, COMPARE_KEYS_ENTRAINEMENT);
+        return card(<>
+          {cardTitle("📊 Entraînement — Dernière séance vs moyenne récente")}
+          {!comp ? (
+            <div style={{ color:"#2d5070", fontSize:12 }}>Pas assez de données sur cette période.</div>
+          ) : (
+            <>
+              <div style={{ color:"#4a6480", fontSize:11, marginBottom:10 }}>
+                Dernière séance : {comp.last.date.split("-").reverse().join("/")} · comparée à la moyenne des {comp.n} dernières
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                {comp.rows.map(r => (
+                  <div key={r.key}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
+                      <span style={{ color:"#94b8d0", fontSize:12, fontWeight:600 }}>{r.label}</span>
+                      <span style={{ fontSize:11 }}>
+                        <span style={{ color:r.color, fontWeight:800 }}>{r.lastVal}</span>
+                        <span style={{ color:"#2d5070" }}> vs moy. {r.avg7}</span>
+                        {r.better && <span style={{ color:"#22c55e", marginLeft:6, fontWeight:700 }}>▼ mieux</span>}
+                        {r.worse && <span style={{ color:"#ef4444", marginLeft:6, fontWeight:700 }}>▲ à surveiller</span>}
+                      </span>
+                    </div>
+                    <div style={{ position:"relative", height:6, background:"#0a1520", borderRadius:99 }}>
+                      <div style={{ position:"absolute", left:0, top:0, height:"100%", width:`${(r.avg7/10)*100}%`, background:"#1a2f45", borderRadius:99 }} />
+                      <div style={{ position:"absolute", left:0, top:0, height:"100%", width:`${(r.lastVal/10)*100}%`, background:r.color, borderRadius:99, opacity:0.85 }} />
+                      <div style={{ position:"absolute", left:`${(r.avg7/10)*100}%`, top:-2, width:2, height:10, background:"#c8dff0" }} title={`Moyenne : ${r.avg7}`} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </>);
+      })()}
+
+      {(typeFilter === "all" || typeFilter === "match") && (() => {
+        const comp = compareLastToRecent(matchEntries, COMPARE_KEYS_MATCH);
+        return card(<>
+          {cardTitle("📊 Match — Dernière rencontre vs moyenne récente")}
+          {!comp ? (
+            <div style={{ color:"#2d5070", fontSize:12 }}>Pas assez de données sur cette période.</div>
+          ) : (
+            <>
+              <div style={{ color:"#4a6480", fontSize:11, marginBottom:10 }}>
+                Dernier match : {comp.last.date.split("-").reverse().join("/")} · comparé à la moyenne des {comp.n} derniers
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                {comp.rows.map(r => (
+                  <div key={r.key}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
+                      <span style={{ color:"#94b8d0", fontSize:12, fontWeight:600 }}>{r.label}</span>
+                      <span style={{ fontSize:11 }}>
+                        <span style={{ color:r.color, fontWeight:800 }}>{r.lastVal}</span>
+                        <span style={{ color:"#2d5070" }}> vs moy. {r.avg7}</span>
+                        {r.better && <span style={{ color:"#22c55e", marginLeft:6, fontWeight:700 }}>▼ mieux</span>}
+                        {r.worse && <span style={{ color:"#ef4444", marginLeft:6, fontWeight:700 }}>▲ à surveiller</span>}
+                      </span>
+                    </div>
+                    <div style={{ position:"relative", height:6, background:"#0a1520", borderRadius:99 }}>
+                      <div style={{ position:"absolute", left:0, top:0, height:"100%", width:`${(r.avg7/10)*100}%`, background:"#1a2f45", borderRadius:99 }} />
+                      <div style={{ position:"absolute", left:0, top:0, height:"100%", width:`${(r.lastVal/10)*100}%`, background:r.color, borderRadius:99, opacity:0.85 }} />
+                      <div style={{ position:"absolute", left:`${(r.avg7/10)*100}%`, top:-2, width:2, height:10, background:"#c8dff0" }} title={`Moyenne : ${r.avg7}`} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </>);
+      })()}
 
       {/* Historique détaillé des réponses, séparé Entraînement / Match */}
       {(typeFilter === "all" || typeFilter === "entrainement") && card(<>
