@@ -11,6 +11,20 @@ const norm = (v, max) => v ? Math.max(0, Math.min(10, Math.round((v / max) * 10)
 const RC = { high:"#ef4444", medium:"#f59e0b", low:"#22c55e", none:"#475569" };
 const ZC = { "Ischios":"#f97316","Mollets":"#06b6d4","Quadriceps":"#8b5cf6","Genoux":"#ec4899","Chevilles":"#84cc16","Dos":"#64748b","Épaules":"#f59e0b" };
 
+// Reconnaît la phase du cycle par mots-clés (peu importe le texte exact/descriptif
+// derrière, ex: "Phase folliculaire (la reconstruction)") pour lui attribuer une
+// icône et une couleur cohérentes dans toute l'app.
+function infosPhaseCycle(phaseCycleRaw) {
+  const texte = (phaseCycleRaw || "").toLowerCase();
+  if (!texte) return null;
+  const label = phaseCycleRaw.split("(")[0].trim();
+  if (texte.includes("menstruel")) return { label, icon: "🩸", color: "#ef4444" };
+  if (texte.includes("folliculaire")) return { label, icon: "🌱", color: "#22c55e" };
+  if (texte.includes("ovulation")) return { label, icon: "🌟", color: "#f59e0b" };
+  if (texte.includes("lutéale") || texte.includes("luteale")) return { label, icon: "🌙", color: "#8b5cf6" };
+  return { label, icon: "🔄", color: "#ec4899" };
+}
+
 function filterPeriod(entries, period) {
   const now = new Date();
   const cutoff = new Date();
@@ -159,6 +173,7 @@ body{font-family:Arial,sans-serif;color:#1a1a2e;font-size:13px}
         ${stats.level==="high"?"⚠ Risque élevé":stats.level==="medium"?"~ Surveiller":"✓ Forme OK"} · ${stats.score||"—"}/10
       </span>
       ${stats.enPeriodeCount > 0 ? `<span class="badge" style="background:#fce7f3;color:#9d174d;border-color:#f9a8d4">🌸 En période ${stats.enPeriodeCount}x</span>` : ""}
+      ${stats.phaseActuelle ? `<span class="badge" style="background:${stats.phaseActuelle.color}22;color:${stats.phaseActuelle.color};border-color:${stats.phaseActuelle.color}44">${stats.phaseActuelle.icon} ${stats.phaseActuelle.label}</span>` : ""}
     </div>
   </div>
   <div style="text-align:right;font-size:11px;color:#9ca3af"><div>Wellness FC — Féminin</div><div>Saison 2026/27</div></div>
@@ -309,6 +324,12 @@ export default function PlayerReport({ player, allEntries, allTempsJeu = [], onB
   const avgDouleursMenst = enPeriodeEntries.filter(e=>e.douleursMenstruelles>0).length
     ? +(enPeriodeEntries.reduce((s,e)=>s+(e.douleursMenstruelles||0),0)/enPeriodeEntries.length).toFixed(1) : 0;
 
+  // Phase du cycle la plus récemment renseignée (peut être différente de la
+  // dernière réponse globale, si la joueuse n'a pas répondu à cette question à
+  // chaque saisie).
+  const dernierePhaseEntry = [...entries].reverse().find(e => e.phaseCycle);
+  const phaseActuelle = dernierePhaseEntry ? infosPhaseCycle(dernierePhaseEntry.phaseCycle) : null;
+
   // Blessures
   const blessures = entries.filter(e => e.douleurs >= (e.type==="match"?3:6) && e.localisation && e.localisation !== "Aucune");
   const blessuresMap = {};
@@ -361,7 +382,7 @@ export default function PlayerReport({ player, allEntries, allTempsJeu = [], onB
 
   const stats = { entries, score, avgFatigue, avgSommeil, avgStress, avgDouleurs, avgHumeur,
     enPeriodeCount, avgDouleursMenst, blessures, blessuresCount, alerts, recommendations, level,
-    matchsJoues, totalMinutes, moyenneMinutes, entrainementEntries, matchEntries, radarData };
+    matchsJoues, totalMinutes, moyenneMinutes, entrainementEntries, matchEntries, radarData, phaseActuelle };
 
   const periodLabel = { month:"Dernier mois", quarter:"3 derniers mois", season:"Toute la saison" };
   const PINK = "#ec4899";
@@ -422,6 +443,11 @@ export default function PlayerReport({ player, allEntries, allTempsJeu = [], onB
               {enPeriodeCount > 0 && (
                 <span style={{ background:"#fce7f322", color:PINK, border:`1px solid ${PINK}44`, borderRadius:99, padding:"2px 10px", fontSize:11, fontWeight:700 }}>
                   🌸 En période {enPeriodeCount}x
+                </span>
+              )}
+              {phaseActuelle && (
+                <span title={dernierePhaseEntry.phaseCycle} style={{ background:`${phaseActuelle.color}22`, color:phaseActuelle.color, border:`1px solid ${phaseActuelle.color}44`, borderRadius:99, padding:"2px 10px", fontSize:11, fontWeight:700 }}>
+                  {phaseActuelle.icon} {phaseActuelle.label}
                 </span>
               )}
               <span style={{ background:"#1a2f45", color:"#4a6480", borderRadius:99, padding:"2px 10px", fontSize:11 }}>
