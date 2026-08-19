@@ -41,6 +41,40 @@ const COMPARE_KEYS_MATCH = [
   { key: "douleurs", label: "Douleurs", color: "#a78bfa" },
   { key: "humeur",   label: "Humeur",   color: "#ec4899", invert: true },
 ];
+
+// Ligne de comparaison claire : deux barres empilées et étiquetées ("Dernière" /
+// "Moy. 7 derniers"), plus un badge de statut coloré — même langage visuel que
+// les barres déjà utilisées ailleurs dans l'app, pour rester intuitif.
+function CompareRow({ r }) {
+  const statut = r.worse
+    ? { label: "À surveiller", bg: "#ef444422", fg: "#ef4444" }
+    : r.better
+    ? { label: "Mieux", bg: "#22c55e22", fg: "#22c55e" }
+    : { label: "Stable", bg: "#1a2f45", fg: "#4a6480" };
+  const miniBar = (label, value, opacity) => (
+    <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+      <span style={{ color:"#4a6480", fontSize:9, width:70, flexShrink:0 }}>{label}</span>
+      <div style={{ flex:1, height:7, background:"#0a1520", borderRadius:99, overflow:"hidden" }}>
+        <div style={{ width:`${(value/10)*100}%`, height:"100%", background:r.color, borderRadius:99, opacity }} />
+      </div>
+      <span style={{ color:"#94b8d0", fontSize:11, width:22, textAlign:"right", flexShrink:0 }}>{value}</span>
+    </div>
+  );
+  return (
+    <div>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:5 }}>
+        <span style={{ color:"#c8dff0", fontSize:12, fontWeight:700 }}>{r.label}</span>
+        <span style={{ background:statut.bg, color:statut.fg, borderRadius:99, padding:"2px 9px", fontSize:10, fontWeight:800 }}>
+          {statut.label}
+        </span>
+      </div>
+      <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+        {miniBar("Dernière", r.lastVal, 1)}
+        {miniBar("Moy. 7 der.", r.avg7, 0.45)}
+      </div>
+    </div>
+  );
+}
 const RC = { high:"#ef4444", medium:"#f59e0b", low:"#22c55e", none:"#475569" };
 const ZC = { "Ischios":"#f97316","Mollets":"#06b6d4","Quadriceps":"#8b5cf6","Genoux":"#ec4899","Chevilles":"#84cc16","Dos":"#64748b","Épaules":"#f59e0b" };
 
@@ -589,28 +623,11 @@ export default function PlayerReport({ player, allEntries, allTempsJeu = [], onB
             <div style={{ color:"#2d5070", fontSize:12 }}>Pas assez de données sur cette période.</div>
           ) : (
             <>
-              <div style={{ color:"#4a6480", fontSize:11, marginBottom:10 }}>
+              <div style={{ color:"#4a6480", fontSize:11, marginBottom:12 }}>
                 Dernière séance : {comp.last.date.split("-").reverse().join("/")} · comparée à la moyenne des {comp.n} dernières
               </div>
-              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                {comp.rows.map(r => (
-                  <div key={r.key}>
-                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
-                      <span style={{ color:"#94b8d0", fontSize:12, fontWeight:600 }}>{r.label}</span>
-                      <span style={{ fontSize:11 }}>
-                        <span style={{ color:r.color, fontWeight:800 }}>{r.lastVal}</span>
-                        <span style={{ color:"#2d5070" }}> vs moy. {r.avg7}</span>
-                        {r.better && <span style={{ color:"#22c55e", marginLeft:6, fontWeight:700 }}>▼ mieux</span>}
-                        {r.worse && <span style={{ color:"#ef4444", marginLeft:6, fontWeight:700 }}>▲ à surveiller</span>}
-                      </span>
-                    </div>
-                    <div style={{ position:"relative", height:6, background:"#0a1520", borderRadius:99 }}>
-                      <div style={{ position:"absolute", left:0, top:0, height:"100%", width:`${(r.avg7/10)*100}%`, background:"#1a2f45", borderRadius:99 }} />
-                      <div style={{ position:"absolute", left:0, top:0, height:"100%", width:`${(r.lastVal/10)*100}%`, background:r.color, borderRadius:99, opacity:0.85 }} />
-                      <div style={{ position:"absolute", left:`${(r.avg7/10)*100}%`, top:-2, width:2, height:10, background:"#c8dff0" }} title={`Moyenne : ${r.avg7}`} />
-                    </div>
-                  </div>
-                ))}
+              <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+                {comp.rows.map(r => <CompareRow key={r.key} r={r} />)}
               </div>
             </>
           )}
@@ -625,28 +642,11 @@ export default function PlayerReport({ player, allEntries, allTempsJeu = [], onB
             <div style={{ color:"#2d5070", fontSize:12 }}>Pas assez de données sur cette période.</div>
           ) : (
             <>
-              <div style={{ color:"#4a6480", fontSize:11, marginBottom:10 }}>
+              <div style={{ color:"#4a6480", fontSize:11, marginBottom:12 }}>
                 Dernier match : {comp.last.date.split("-").reverse().join("/")} · comparé à la moyenne des {comp.n} derniers
               </div>
-              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                {comp.rows.map(r => (
-                  <div key={r.key}>
-                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
-                      <span style={{ color:"#94b8d0", fontSize:12, fontWeight:600 }}>{r.label}</span>
-                      <span style={{ fontSize:11 }}>
-                        <span style={{ color:r.color, fontWeight:800 }}>{r.lastVal}</span>
-                        <span style={{ color:"#2d5070" }}> vs moy. {r.avg7}</span>
-                        {r.better && <span style={{ color:"#22c55e", marginLeft:6, fontWeight:700 }}>▼ mieux</span>}
-                        {r.worse && <span style={{ color:"#ef4444", marginLeft:6, fontWeight:700 }}>▲ à surveiller</span>}
-                      </span>
-                    </div>
-                    <div style={{ position:"relative", height:6, background:"#0a1520", borderRadius:99 }}>
-                      <div style={{ position:"absolute", left:0, top:0, height:"100%", width:`${(r.avg7/10)*100}%`, background:"#1a2f45", borderRadius:99 }} />
-                      <div style={{ position:"absolute", left:0, top:0, height:"100%", width:`${(r.lastVal/10)*100}%`, background:r.color, borderRadius:99, opacity:0.85 }} />
-                      <div style={{ position:"absolute", left:`${(r.avg7/10)*100}%`, top:-2, width:2, height:10, background:"#c8dff0" }} title={`Moyenne : ${r.avg7}`} />
-                    </div>
-                  </div>
-                ))}
+              <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+                {comp.rows.map(r => <CompareRow key={r.key} r={r} />)}
               </div>
             </>
           )}
