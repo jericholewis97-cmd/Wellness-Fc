@@ -8,7 +8,7 @@ const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyrZx9S7XA7_qiG
 
 const PLAYERS = [
   "Afonso Kiara","Agushi Liza","Barbosa da Silva Neto Giovanna Maria",
-  "Berisha Anea","Chassagnot Kyméa","De Moraes Salles Meirelles Da Cunha Ariel",
+  "Beatriz Fidalgo","Berisha Anea","Chassagnot Kyméa","De Moraes Salles Meirelles Da Cunha Ariel",
   "De Sousa Lea","Dénéreaz Gabriella","Fontannaz Tessa","Gavazaj Melina",
   "Grognuz Sophia","Jesus Noia Ana Catarina","Jollant Ema","Kasdi Tessa Thanina",
   "Kastrati Lorena","Lourenço Chiara","Maire Alicia","Mavraj Melissa",
