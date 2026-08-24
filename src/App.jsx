@@ -389,6 +389,7 @@ export default function App() {
   const [entrainement, setEntrainement] = useState(DEMO_E);
   const [matchData, setMatchData] = useState(DEMO_M);
   const [tempsJeu, setTempsJeu] = useState([]);
+  const [profils, setProfils] = useState([]);
   const [savingMatch, setSavingMatch] = useState(false);
   const [selected, setSelected] = useState(null);
   const [tab, setTab] = useState("dashboard");
@@ -444,6 +445,7 @@ export default function App() {
       setEntrainement(data.entrainement || []);
       setMatchData(data.match || []);
       setTempsJeu(data.tempsJeu || []);
+      setProfils(data.profils || []);
       setIsDemo(false);
     } catch(e) { console.error(e); }
     finally { setLoading(false); }
@@ -623,7 +625,7 @@ export default function App() {
 
       <div style={{ maxWidth:1100, margin:"0 auto", padding: isMobile ? "14px 12px" : "24px", paddingBottom: isMobile ? 80 : 24 }}>
         {selected && (
-          <PlayerReport player={selected} allEntries={allEntries} allTempsJeu={tempsJeu} onBack={() => setSelected(null)} isMobile={isMobile} />
+          <PlayerReport player={selected} allEntries={allEntries} allTempsJeu={tempsJeu} profil={profils.find(p => p.joueur === selected.name)} onBack={() => setSelected(null)} isMobile={isMobile} />
         )}
 
         {!selected && (tab === "dashboard" || tab === "players") && (
