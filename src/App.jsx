@@ -319,10 +319,10 @@ ${participationList.length > 0 ? `
 // ---------- Alertes train (export calendrier .ics) ----------
 
 const JOURS_TRAIN = [
-  { key: "heureTrainLundi",    label: "Lundi",    iso: 1 },
-  { key: "heureTrainMardi",    label: "Mardi",    iso: 2 },
-  { key: "heureTrainMercredi", label: "Mercredi", iso: 3 },
-  { key: "heureTrainJeudi",    label: "Jeudi",    iso: 4 },
+  { key: "heureTrainLundi",    label: "Lundi",    iso: 1, rrule: "MO" },
+  { key: "heureTrainMardi",    label: "Mardi",    iso: 2, rrule: "TU" },
+  { key: "heureTrainMercredi", label: "Mercredi", iso: 3, rrule: "WE" },
+  { key: "heureTrainJeudi",    label: "Jeudi",    iso: 4, rrule: "TH" },
 ];
 
 // Extrait une heure du type "20h33" ou "18h33 - 19h06" (prend la première trouvée)
@@ -347,13 +347,19 @@ function prochaineOccurrence(isoDay) {
 
 const pad2 = n => String(n).padStart(2, "0");
 
+// Échappe les caractères spéciaux requis par la norme iCalendar (RFC 5545)
+// dans les champs texte (virgules, points-virgules, retours à la ligne).
+const escapeICS = s => String(s).replace(/\\/g,"\\\\").replace(/,/g,"\\,").replace(/;/g,"\\;").replace(/\n/g,"\\n");
+
 // Génère un fichier .ics avec un événement hebdomadaire récurrent par joueuse/jour
 // de train, avec une alerte native 15 min avant — à importer une fois dans le
 // calendrier du téléphone (Google Calendar, Apple Calendar...) pour des rappels
 // fiables même app fermée.
 function genererICSTrain(profils, minutesAvant) {
-  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Wellness FC//Alertes Train//FR"];
+  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Wellness FC//Alertes Train//FR", "CALSCALE:GREGORIAN"];
   let count = 0;
+  const now = new Date();
+  const dtStamp = `${now.getUTCFullYear()}${pad2(now.getUTCMonth()+1)}${pad2(now.getUTCDate())}T${pad2(now.getUTCHours())}${pad2(now.getUTCMinutes())}${pad2(now.getUTCSeconds())}Z`;
 
   profils.forEach(p => {
     JOURS_TRAIN.forEach(j => {
@@ -367,15 +373,16 @@ function genererICSTrain(profils, minutesAvant) {
       lines.push(
         "BEGIN:VEVENT",
         `UID:train-${p.joueur.replace(/\s+/g,"")}-${j.label}@wellnessfc`,
+        `DTSTAMP:${dtStamp}`,
         `DTSTART:${dtStart}`,
         `DTEND:${dtEnd}`,
-        `RRULE:FREQ=WEEKLY;BYDAY=${j.label.slice(0,2).toUpperCase()}`,
-        `SUMMARY:🚆 Départ train — ${p.joueur}`,
-        `DESCRIPTION:${p.joueur} doit partir vers ${p[j.key]} (${j.label})`,
+        `RRULE:FREQ=WEEKLY;BYDAY=${j.rrule}`,
+        `SUMMARY:🚆 Départ train — ${escapeICS(p.joueur)}`,
+        `DESCRIPTION:${escapeICS(p.joueur + " doit partir vers " + p[j.key] + " (" + j.label + ")")}`,
         "BEGIN:VALARM",
         `TRIGGER:-PT${minutesAvant}M`,
         "ACTION:DISPLAY",
-        `DESCRIPTION:🚆 ${p.joueur} — train dans ${minutesAvant} min`,
+        `DESCRIPTION:${escapeICS("🚆 " + p.joueur + " — train dans " + minutesAvant + " min")}`,
         "END:VALARM",
         "END:VEVENT"
       );
