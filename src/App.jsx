@@ -316,6 +316,93 @@ ${participationList.length > 0 ? `
   setTimeout(() => win.print(), 500);
 }
 
+// ---------- Alertes train (export calendrier .ics) ----------
+
+const JOURS_TRAIN = [
+  { key: "heureTrainLundi",    label: "Lundi",    iso: 1 },
+  { key: "heureTrainMardi",    label: "Mardi",    iso: 2 },
+  { key: "heureTrainMercredi", label: "Mercredi", iso: 3 },
+  { key: "heureTrainJeudi",    label: "Jeudi",    iso: 4 },
+];
+
+// Extrait une heure du type "20h33" ou "18h33 - 19h06" (prend la première trouvée)
+// depuis un texte libre ; renvoie null si aucune heure claire n'est repérable
+// (ex: "x" ou vide).
+function parseHeureTrain(raw) {
+  if (!raw) return null;
+  const m = String(raw).match(/(\d{1,2})[h:](\d{2})/);
+  if (!m) return null;
+  const h = parseInt(m[1], 10), min = parseInt(m[2], 10);
+  if (h > 23 || min > 59) return null;
+  return { h, m: min };
+}
+
+// Prochaine date (à partir d'aujourd'hui) correspondant à un jour ISO donné (1=Lundi..4=Jeudi)
+function prochaineOccurrence(isoDay) {
+  const d = new Date();
+  const diff = (isoDay - (d.getDay() === 0 ? 7 : d.getDay()) + 7) % 7;
+  d.setDate(d.getDate() + diff);
+  return d;
+}
+
+const pad2 = n => String(n).padStart(2, "0");
+
+// Génère un fichier .ics avec un événement hebdomadaire récurrent par joueuse/jour
+// de train, avec une alerte native 15 min avant — à importer une fois dans le
+// calendrier du téléphone (Google Calendar, Apple Calendar...) pour des rappels
+// fiables même app fermée.
+function genererICSTrain(profils, minutesAvant) {
+  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Wellness FC//Alertes Train//FR"];
+  let count = 0;
+
+  profils.forEach(p => {
+    JOURS_TRAIN.forEach(j => {
+      const heure = parseHeureTrain(p[j.key]);
+      if (!heure) return;
+      const date = prochaineOccurrence(j.iso);
+      date.setHours(heure.h, heure.m, 0, 0);
+      const dtStart = `${date.getFullYear()}${pad2(date.getMonth()+1)}${pad2(date.getDate())}T${pad2(heure.h)}${pad2(heure.m)}00`;
+      const dtEnd = `${date.getFullYear()}${pad2(date.getMonth()+1)}${pad2(date.getDate())}T${pad2(heure.h)}${pad2(Math.min(heure.m+5,59))}00`;
+      count++;
+      lines.push(
+        "BEGIN:VEVENT",
+        `UID:train-${p.joueur.replace(/\s+/g,"")}-${j.label}@wellnessfc`,
+        `DTSTART:${dtStart}`,
+        `DTEND:${dtEnd}`,
+        `RRULE:FREQ=WEEKLY;BYDAY=${j.label.slice(0,2).toUpperCase()}`,
+        `SUMMARY:🚆 Départ train — ${p.joueur}`,
+        `DESCRIPTION:${p.joueur} doit partir vers ${p[j.key]} (${j.label})`,
+        "BEGIN:VALARM",
+        `TRIGGER:-PT${minutesAvant}M`,
+        "ACTION:DISPLAY",
+        `DESCRIPTION:🚆 ${p.joueur} — train dans ${minutesAvant} min`,
+        "END:VALARM",
+        "END:VEVENT"
+      );
+    });
+  });
+
+  lines.push("END:VCALENDAR");
+  return { ics: lines.join("\r\n"), count };
+}
+
+function telechargerICS(profils, minutesAvant) {
+  const { ics, count } = genererICSTrain(profils, minutesAvant);
+  if (count === 0) {
+    alert("Aucun horaire de train reconnu dans les profils (colonnes Lundi à Jeudi vides ou illisibles).");
+    return;
+  }
+  const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "wellness-fc-alertes-train.ics";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 
 function PlayerCardMobile({ p, onClick, typeFilter }) {
   const isM = p.lastE?.type === "match";
@@ -514,6 +601,17 @@ export default function App() {
   const nonRepondantesCutoffISO = nonRepondantesCutoff.toISOString().slice(0, 10);
   const nonRepondantes = playerStats.filter(p => !p.entries.some(e => e.date >= nonRepondantesCutoffISO));
 
+  // Départs train du jour (si on est Lundi-Jeudi), triés par heure croissante —
+  // utile à consulter directement sur le téléphone pendant la séance.
+  const jourActuelISO = new Date().getDay() === 0 ? 7 : new Date().getDay();
+  const jourTrainAujourdhui = JOURS_TRAIN.find(j => j.iso === jourActuelISO);
+  const departsTrainAujourdhui = jourTrainAujourdhui
+    ? profils
+        .map(p => ({ nom: p.joueur, heureTxt: p[jourTrainAujourdhui.key], heure: parseHeureTrain(p[jourTrainAujourdhui.key]) }))
+        .filter(d => d.heure)
+        .sort((a, b) => (a.heure.h*60+a.heure.m) - (b.heure.h*60+b.heure.m))
+    : [];
+
   const avgFatigue = scopedEntries.length ? (scopedEntries.reduce((s,e) => {
     const mx = e.type==="match" ? 5 : 10;
     return s + norm10(e.fatigue, mx);
@@ -662,6 +760,34 @@ export default function App() {
               <KPI label="Alertes" value={alerts.length} color={alerts.length>0?"#ef4444":"#22c55e"} icon="⚠" mobile={isMobile} />
               <KPI label="Fatigue moy." value={avgFatigue} color="#f59e0b" icon="📈" mobile={isMobile} />
               <KPI label="En période 🌸" value={enPeriodeCount} color={PINK} icon="🌸" mobile={isMobile} />
+            </div>
+
+            <div style={{ background:"#0d1420", border:"1px solid #2d4a63", borderRadius:12, padding:"12px 14px", marginBottom:10 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:8, marginBottom: departsTrainAujourdhui.length ? 8 : 0 }}>
+                <div style={{ color:"#38bdf8", fontWeight:700, fontSize:12 }}>
+                  🚆 DÉPARTS TRAIN {jourTrainAujourdhui ? `— AUJOURD'HUI (${jourTrainAujourdhui.label})` : ""}
+                </div>
+                <button
+                  onClick={() => telechargerICS(profils, 15)}
+                  style={{ background:"#38bdf8", border:"none", borderRadius:8, color:"#06212f", padding:"6px 12px", cursor:"pointer", fontWeight:700, fontSize:11 }}>
+                  📅 Exporter alertes calendrier
+                </button>
+              </div>
+              {jourTrainAujourdhui ? (
+                departsTrainAujourdhui.length > 0 ? (
+                  <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                    {departsTrainAujourdhui.map((d,i) => (
+                      <div key={i} style={{ background:"#0a1520", border:"1px solid #2d4a63", borderRadius:8, padding:"5px 12px", color:"#94d2f0", fontWeight:600, fontSize:12 }}>
+                        {isMobile ? d.nom.split(" ")[0] : d.nom} · {d.heureTxt}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ color:"#2d5070", fontSize:11 }}>Aucun horaire de train renseigné pour aujourd'hui.</div>
+                )
+              ) : (
+                <div style={{ color:"#2d5070", fontSize:11 }}>Pas de trains renseignés le week-end.</div>
+              )}
             </div>
 
             {nonRepondantes.length > 0 && (
