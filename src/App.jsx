@@ -775,7 +775,7 @@ export default function App() {
                   🚆 DÉPARTS TRAIN {jourTrainAujourdhui ? `— AUJOURD'HUI (${jourTrainAujourdhui.label})` : ""}
                 </div>
                 <button
-                  onClick={() => telechargerICS(profils, 15)}
+                  onClick={() => telechargerICS(profils, 30)}
                   style={{ background:"#38bdf8", border:"none", borderRadius:8, color:"#06212f", padding:"6px 12px", cursor:"pointer", fontWeight:700, fontSize:11 }}>
                   📅 Exporter alertes calendrier
                 </button>
