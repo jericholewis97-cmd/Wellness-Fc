@@ -352,7 +352,7 @@ ${buildTrendSvg("📈 Courbe Match", stats.matchEntries)}
   setTimeout(() => win.print(), 500);
 }
 
-export default function PlayerReport({ player, allEntries, allTempsJeu = [], onBack, isMobile }) {
+export default function PlayerReport({ player, allEntries, allTempsJeu = [], profil, onBack, isMobile }) {
   const [period, setPeriod] = useState("month");
   const [typeFilter, setTypeFilter] = useState("all"); // "all" | "entrainement" | "match"
 
@@ -524,6 +524,63 @@ export default function PlayerReport({ player, allEntries, allTempsJeu = [], onB
           </div>
         </div>
       </div>
+
+      {/* Profil joueuse (infos administratives, depuis le classeur "Informations individuelles") */}
+      {profil && (profil.dateNaissance || profil.postePrincipal || profil.piedFort || profil.objectifsIndividuels || profil.objectifsCollectifs) && card(<>
+        {cardTitle("🪪 Profil")}
+        <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap:10, marginBottom: (profil.objectifsIndividuels || profil.objectifsCollectifs) ? 12 : 0 }}>
+          {profil.dateNaissance && (() => {
+            const d = new Date(profil.dateNaissance);
+            const age = !isNaN(d.getTime()) ? Math.floor((Date.now() - d.getTime()) / (365.25*24*3600*1000)) : null;
+            return (
+              <div style={{ background:"#0a1520", borderRadius:10, padding:"10px" }}>
+                <div style={{ color:"#2d5070", fontSize:9, textTransform:"uppercase", letterSpacing:1, marginBottom:3 }}>Naissance</div>
+                <div style={{ color:"#c8dff0", fontSize:13, fontWeight:700 }}>
+                  {!isNaN(d.getTime()) ? d.toLocaleDateString("fr-CH") : profil.dateNaissance}{age !== null ? ` (${age} ans)` : ""}
+                </div>
+              </div>
+            );
+          })()}
+          {profil.piedFort && (
+            <div style={{ background:"#0a1520", borderRadius:10, padding:"10px" }}>
+              <div style={{ color:"#2d5070", fontSize:9, textTransform:"uppercase", letterSpacing:1, marginBottom:3 }}>Pied fort</div>
+              <div style={{ color:"#c8dff0", fontSize:13, fontWeight:700 }}>{profil.piedFort}</div>
+            </div>
+          )}
+          {(profil.postePrincipal || profil.posteSecondaire) && (
+            <div style={{ background:"#0a1520", borderRadius:10, padding:"10px" }}>
+              <div style={{ color:"#2d5070", fontSize:9, textTransform:"uppercase", letterSpacing:1, marginBottom:3 }}>Poste</div>
+              <div style={{ color:"#c8dff0", fontSize:13, fontWeight:700 }}>
+                {profil.postePrincipal}{profil.posteSecondaire ? ` / ${profil.posteSecondaire}` : ""}
+              </div>
+            </div>
+          )}
+          {profil.tailleMaillot && (
+            <div style={{ background:"#0a1520", borderRadius:10, padding:"10px" }}>
+              <div style={{ color:"#2d5070", fontSize:9, textTransform:"uppercase", letterSpacing:1, marginBottom:3 }}>Taille maillot</div>
+              <div style={{ color:"#c8dff0", fontSize:13, fontWeight:700 }}>{profil.tailleMaillot}</div>
+            </div>
+          )}
+          {profil.transport && (
+            <div style={{ background:"#0a1520", borderRadius:10, padding:"10px" }}>
+              <div style={{ color:"#2d5070", fontSize:9, textTransform:"uppercase", letterSpacing:1, marginBottom:3 }}>Transport</div>
+              <div style={{ color:"#c8dff0", fontSize:13, fontWeight:700 }}>{profil.transport}</div>
+            </div>
+          )}
+        </div>
+        {profil.objectifsIndividuels && (
+          <div style={{ marginBottom: profil.objectifsCollectifs ? 8 : 0 }}>
+            <div style={{ color:"#2d5070", fontSize:9, textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>🎯 Objectifs individuels</div>
+            <div style={{ color:"#94b8d0", fontSize:12, lineHeight:1.5 }}>{profil.objectifsIndividuels}</div>
+          </div>
+        )}
+        {profil.objectifsCollectifs && (
+          <div>
+            <div style={{ color:"#2d5070", fontSize:9, textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>🤝 Objectifs collectifs</div>
+            <div style={{ color:"#94b8d0", fontSize:12, lineHeight:1.5 }}>{profil.objectifsCollectifs}</div>
+          </div>
+        )}
+      </>)}
 
       {/* Alertes */}
       {alerts.length > 0 && (
